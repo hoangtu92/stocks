@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="b7a76896-b730-4642-b05a-d86916373be4" name="ovh" url="http://ftp.stocks.ml-codesign.com">
+        <fileTransfer host="ftp.stocks.ml-codesign.com" port="22" privateKey="C:\Users\hoangtu92\.ssh\stocks" rootFolder="/web/stocks/public_html" accessType="SFTP" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
