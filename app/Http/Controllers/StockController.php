@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Arav;
+use App\Crawler\MisTwse;
 use App\Crawler\Tpex;
 use App\Crawler\Twse;
 use App\Dl;
+use App\Order;
+use App\Stock;
 use Goutte\Client;
 use Illuminate\Support\Facades\DB;
 
@@ -13,6 +16,8 @@ class StockController extends Controller
 {
     private $filter = [];
     private $filter2 = [];
+    private $range_filter = 9.5;
+    private $vol_filter = 1000;
 
     private $today;
 
@@ -77,18 +82,10 @@ class StockController extends Controller
     public function dl($filter_date){
         $TWO = new Tpex();
 
-        //var_dump("getting dl on {$filter_date}");
-
         $two_data = $TWO->get($filter_date);
 
-        $mapping_label = [
-            "date" => "漲停日",
-            "code" => "Code",
-            "name" => "股票代號/名稱",
-            "final" => "成交價",
-            "range" => "漲跌幅",
-            "vol" => "成交張數"
-        ];
+        Dl::where("date", $filter_date)->delete();
+
 
         $date = date_create($filter_date);
         $year = $date->format("Y");
@@ -96,6 +93,8 @@ class StockController extends Controller
         $day = $date->format("d");
 
         $tw_year = $year - 1911;
+
+        $result_data = [];
 
         $client = new Client();
         $crawler = $client->request("GET", "https://www.tpex.org.tw/web/stock/trading/intraday_trading/intraday_trading_list_print.php?l=zh-tw&d={$tw_year}/{$month}/{$day}&stock_code=&s=0,asc,1");
@@ -111,13 +110,21 @@ class StockController extends Controller
         });
 
 
-        $result_data = [];
+
         foreach ($two_data as $i => $data){
+
+            //Stock info
+            $stock = Stock::where("code", $data[0])->first();
+
+            if(!$stock) Stock::create([
+                "code" => $data[0],
+                "name" => $data[1],
+                "type" => Stock::OTC,
+            ]);
 
             $d = [
                 'date'  => $filter_date,
                 'code' => $data[0],
-                'name' => $data[1],
                 'final' => $this->format_number($data[2]),
                 'range' => $this->format_number($data[3]),
                 'vol' => $this->format_number($data[8])
@@ -130,11 +137,14 @@ class StockController extends Controller
 
             $d["vol"] = round($d["vol"]/1000, 0);
 
-            if($d['range'] >= 7.5 && $d["vol"] > 1000 && strlen($d["code"]) <= 4 && in_array($d["code"], $this->filter2)) {
+            if($d['range'] >= $this->range_filter && $d["vol"] > $this->vol_filter && strlen($d["code"]) <= 4 && in_array($d["code"], $this->filter2)) {
                 $result_data[$d["code"]] = $d;
 
                 $dl = Dl::where("code", $d["code"])->where("date", $filter_date)->first();
-                if(!$dl){
+                if($dl){
+                    $dl->update($d);
+                }
+                else{
                     Dl::create($d);
                 }
             };
@@ -158,45 +168,168 @@ class StockController extends Controller
         $twse_data = $twse->get($filter_date);
         foreach ($twse_data as $i => $data){
 
+            //Stock info
+            $stock = Stock::where("code", $data[0])->first();
+
+            if(!$stock) Stock::create([
+                "code" => $data[0],
+                "name" => $data[1],
+                "type" => Stock::TSE,
+            ]);
+
             if(strlen($data[0]) > 4) continue;
 
             $d = [
                 'date'  => $filter_date,
                 'code' => $data[0],
-                'name' => $data[1],
                 'final' => $this->format_number($data[8]),
                 'range' => $this->format_number($data[9]),
                 'vol' => $this->format_number($data[3])
 
             ];
 
+
             $v8 = $d["final"];
-            $v10 = $this->format_number($data[10]);
+            $v9 = strip_tags($data['9']);
+            $v10 = $v9 == '-' ? -$this->format_number($data[10]) : $this->format_number($data[10]) ;
 
-            $d["range"] = $v8 == $v10 ? 0 : round((($v8 - ($v8-$v10))/($v8-$v10))*100);
+            $d["range"] = $v8 == $v10 ? 0 : round((($v8 - ($v8-$v10))/($v8-$v10))*100, 2);
 
-            if($d['range'] >= 7.5 && $d["vol"] > 1000 && strlen($d["code"]) <= 4 && in_array($d["code"], $this->filter)) {
+            if($d['range'] >= $this->range_filter && $d["vol"] > $this->vol_filter && strlen($d["code"]) <= 4 && in_array($d["code"], $this->filter)) {
+
                 $result_data[$d["code"]] = $d;
 
                 $dl = Dl::where("code", $d["code"])->where("date", $filter_date)->first();
-                if(!$dl){
+                if($dl){
+                    $dl->update($d);
+                }
+                else{
                     Dl::create($d);
                 }
             }
 
+
         }
 
-        $this->toTable($result_data, $mapping_label);
+
 
         return $result_data;
+    }
+
+    private function getPreviousDayDL($d, $filter_date){
+        return Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
     }
 
 
     public function arav($filter_date){
         $TWO = new Tpex();
 
+        Arav::where("date", $filter_date)->delete();
+
         $two_data = $TWO->get($filter_date);
 
+
+        $arav_data = [];
+        foreach ($two_data as $i => $data){
+
+            //Stock info
+            $stock = Stock::where("code", $data[0])->first();
+
+            if(!$stock) Stock::create([
+                "code" => $data[0],
+                "name" => $data[1],
+                "type" => Stock::OTC,
+            ]);
+
+            if(strlen($data[0]) > 4) continue;
+
+            $d = [
+                'date'  => $filter_date,
+                'code' => $data[0],
+                'final' => $this->format_number($data[2]),
+                'price_range' => $this->format_number($data[3]),
+                'start' => $this->format_number($data[4]),
+                'max' => $this->format_number($data[5]),
+                'lowest' => $this->format_number($data[6])
+
+            ];
+
+            $dl = $this->getPreviousDayDL($d, $filter_date);
+            if(!$dl) continue;
+
+            $arav_data[] = $d;
+
+            $arav = Arav::where("code", $d["code"])->where("date", $filter_date)->first();
+            if($arav){
+                $arav->update($d);
+            }
+            else{
+                Arav::create($d);
+            }
+        }
+
+        $twse = new Twse();
+        $twse_data = $twse->get($filter_date);
+        foreach ($twse_data as $i => $data){
+
+            //Stock info
+            $stock = Stock::where("code", $data[0])->first();
+
+            if(!$stock) Stock::create([
+                "code" => $data[0],
+                "name" => $data[1],
+                "type" => Stock::OTC,
+            ]);
+
+            if(strlen($data[0]) > 4) continue;
+
+            $d = [
+                'date'  => $filter_date,
+                'code' => $data[0],
+                'start' => $this->format_number($data[5]),
+                'max' => $this->format_number($data[6]),
+                'lowest' => $this->format_number($data[7]),
+                'final' => $this->format_number($data[8]),
+                'price_range' => $this->format_number($data[10])
+
+            ];
+
+            $dl = $this->getPreviousDayDL($d, $filter_date);
+            if(!$dl) continue;
+
+            $arav_data[] = $d;
+
+            $arav = Arav::where("code", $d["code"])->where("date", $filter_date)->first();
+            if($arav){
+                $arav->update($d);
+            }
+            else{
+                Arav::create($d);
+            }
+        }
+
+
+        return $arav_data;
+    }
+
+
+
+    public function getDl($filter_date){
+        $mapping_label = [
+            "date" => "漲停日",
+            "code" => "Code",
+            "name" => "股票代號/名稱",
+            "final" => "成交價",
+            "range" => "漲跌幅",
+            "vol" => "成交張數"
+        ];
+
+        $result_data = $this->dl($filter_date);
+
+        $this->toTable($result_data, $mapping_label);
+    }
+
+    public function getArav($filter_date){
         $mapping_label = [
             "date" => "漲停日",
             "code" => "Code",
@@ -208,67 +341,10 @@ class StockController extends Controller
             "price_range" => "漲跌幅",
         ];
 
-        $arav_data = [];
-        foreach ($two_data as $i => $data){
-
-            if(strlen($data[0]) > 4) continue;
-
-            $d = [
-                'date'  => $filter_date,
-                'code' => $data[0],
-                'name' => $data[1],
-                'final' => $this->format_number($data[2]),
-                'price_range' => $this->format_number($data[3]),
-                'start' => $this->format_number($data[4]),
-                'max' => $this->format_number($data[5]),
-                'lowest' => $this->format_number($data[6])
-
-            ];
-
-            $dl = Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
-            if(!$dl) continue;
-
-            $arav_data[] = $d;
-
-            $arav = Arav::where("code", $d["code"])->where("date", $filter_date)->first();
-            if(!$arav){
-                Arav::create($d);
-            }
-        }
-
-        $twse = new Twse();
-        $twse_data = $twse->get($filter_date);
-        foreach ($twse_data as $i => $data){
-
-            if(strlen($data[0]) > 4) continue;
-
-            $d = [
-                'date'  => $filter_date,
-                'code' => $data[0],
-                'name' => $data[1],
-                'start' => $this->format_number($data[5]),
-                'max' => $this->format_number($data[6]),
-                'lowest' => $this->format_number($data[7]),
-                'final' => $this->format_number($data[8]),
-                'price_range' => $this->format_number($data[10])
-
-            ];
-
-            $dl = Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
-            if(!$dl) continue;
-
-            $arav_data[] = $d;
-
-            $arav = Arav::where("code", $d["code"])->where("date", $filter_date)->first();
-            if(!$arav){
-                Arav::create($d);
-            }
-        }
+        $arav_data = $this->arav($filter_date);
 
         $this->toTable($arav_data, $mapping_label);
-        return $arav_data;
     }
-
 
 
     public function crawlDataByDate($date_str){
@@ -290,6 +366,89 @@ class StockController extends Controller
 
     }
 
+    public function order(){
+        $filter_date = $this->today->format("Y-m-d");
+        $data = DB::table("orders")
+            ->join("stocks", "stocks.code", "=", "orders.code")
+            ->join("dl", "dl.code", "=", "orders.code")
+            ->selectRaw(DB::raw("orders.date, stocks.code, stocks.name, dl.final, dl.range, dl.vol, orders.start as order_start"))
+            ->where("orders.date", $this->previousDay($filter_date))
+            ->get()
+            ->toArray();
+
+        $this->toTable($data, [
+            "date" => "漲停日",
+            "code" => "Code",
+            "name" => "股票代號/名稱",
+
+            "final" => "成交價",
+            "range" => "漲跌幅",
+            "vol" => "成交張數",
+
+            "order_start" => "開盤價"
+        ]);
+    }
+
+    public function crawlOrderByDate($filter_date = null){
+        if (!$filter_date) $filter_date = $this->today->format("Y-m-d");
+
+        Order::where("date", $filter_date)->delete();
+
+        //get today dl value
+        $today_dl = DB::table("dl")
+            ->join("stocks", "stocks.code", "=", "dl.code")
+            ->addSelect(DB::raw("dl.*, stocks.type as type, stocks.name as name"))
+            ->where("date", $filter_date)
+            ->get();
+
+        $misTwse = new MisTwse();
+
+        foreach ($today_dl as $dl){
+            $data = $misTwse->get($dl->type, $dl->code);
+            if(isset($data[0])){
+                $order = Order::where("code", $dl->code)->where("date", $filter_date)->first();
+
+                if($order){
+                    $order->update([
+                        "start" => $this->format_number($data[0]->o)
+                    ]);
+                }
+                else{
+                    Order::create([
+                        "code" => $dl->code,
+                        "date" => $filter_date,
+                        "start" => $this->format_number($data[0]->o)
+                    ]);
+                }
+            }
+        }
+
+        $data = DB::table("orders")
+            ->join("stocks", "stocks.code", "=", "orders.code")
+            ->join("dl", "dl.code", "=", "orders.code")
+            ->selectRaw(DB::raw("dl.date, stocks.code, stocks.name, dl.final, dl.range, dl.vol, orders.start as order_start"))
+            ->where("orders.date", $filter_date)
+            ->get()
+            ->toArray();
+
+        $this->toTable($data, [
+            "date" => "漲停日",
+            "code" => "Code",
+            "name" => "股票代號/名稱",
+
+            "final" => "成交價",
+            "range" => "漲跌幅",
+            "vol" => "成交張數",
+
+            "order_start" => "開盤價"
+        ]);
+
+    }
+
+    public function crawlOrderToday(){
+        $this->crawlOrderByDate($this->previousDay($this->today->format("Y-m-d")));
+    }
+
     public function data($date = null){
 
 
@@ -298,9 +457,10 @@ class StockController extends Controller
                 $join->on("dl.code", "=", "aravs.code")->whereRaw(DB::raw("((DAYOFWEEK(dl.date) < 6 AND DAYOFWEEK(dl.date) > 1 AND DATEDIFF(aravs.date, dl.date) = 1)
                 OR (DAYOFWEEK(dl.date) = 6 AND DATEDIFF(aravs.date, dl.date) = 3 ))"));
             })
+            ->join("stocks", "stocks.code", "=", "dl.code")
             ->select("dl.date")
             ->addSelect("dl.code")
-            ->addSelect("dl.name")
+            ->addSelect(DB::raw("stocks.name as name"))
             ->addSelect("dl.final")
             ->addSelect("range")
             ->addSelect("vol")
@@ -338,12 +498,6 @@ class StockController extends Controller
             "price_range" => "漲跌幅",
         ];
 
-        print "<table cellspacing='20'><thead><tr><th>Datatable</th></tr></thead><tbody><tr><td valign='top'>";
         $this->toTable($list_dl, $mapping_label);
-        print "</td>";
-
-
-        print "</td>";
-        print "</tr></tbody></table>";
     }
 }

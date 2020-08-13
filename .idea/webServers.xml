@@ -3,7 +3,15 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="b7a76896-b730-4642-b05a-d86916373be4" name="ovh" url="http://ftp.stocks.ml-codesign.com">
-        <fileTransfer host="ftp.stocks.ml-codesign.com" port="22" privateKey="C:\Users\hoangtu92\.ssh\stocks" rootFolder="/web/stocks/public_html" accessType="SFTP" keyPair="true">
+        <fileTransfer host="ftp.stocks.ml-codesign.com" port="22" privateKey="C:\Users\hoangtu92\.ssh\stocks" rootFolder="/web/stocks/httpdocs" accessType="SFTP" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+      <webServer id="adaa1595-3bb2-4367-ab46-d66985eb67a1" name="aws" url="http://3.128.149.102">
+        <fileTransfer host="3.128.149.102" port="22" privateKey="C:\Users\hoangtu92\.ssh\stocks_aws.pem" rootFolder="/var/www" accessType="SFTP" keyPair="true">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

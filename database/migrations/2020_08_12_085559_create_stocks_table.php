@@ -1,10 +1,11 @@
 <?php
 
+use App\Stock;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateDlTable extends Migration
+class CreateStocksTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,13 +14,11 @@ class CreateDlTable extends Migration
      */
     public function up()
     {
-        Schema::create('dl', function (Blueprint $table) {
+        Schema::create('stocks', function (Blueprint $table) {
             $table->id();
-            $table->string("code")->nullable(false);
-            $table->decimal("final");
-            $table->decimal("range");
-            $table->decimal("vol");
-            $table->date("date");
+            $table->string("code")->unique(true);
+            $table->enum("type", [Stock::OTC, Stock::TSE])->default(Stock::OTC);
+            $table->string("name");
             $table->timestamps();
         });
     }
@@ -31,6 +30,6 @@ class CreateDlTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('dl');
+        Schema::dropIfExists('stocks');
     }
 }

@@ -17,10 +17,12 @@ class Twse extends Crawler
 
         $filter_date = "{$date['year']}{$date['month']}{$date['day']}";
 
-        $response = file_get_contents($this->url.'?'.http_build_query([
+        $url = $this->url.'?'.http_build_query([
                 "type" => "ALLBUT0999",
                 "response" => "json",
-                "date" => $filter_date]));
+                "date" => $filter_date]);
+
+        $response = file_get_contents($url);
 
         $json = json_decode($response);
 
@@ -28,7 +30,7 @@ class Twse extends Crawler
             return $json->data9;
         }
         else{
-            Log::info("No data \n".$response);
+            Log::info("No data found on Twse: {$url} -  ".$response);
         }
         return [];
     }

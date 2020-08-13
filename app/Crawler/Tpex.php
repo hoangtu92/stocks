@@ -2,6 +2,8 @@
 
 namespace App\Crawler;
 
+use Illuminate\Support\Facades\Log;
+
 class Tpex extends Crawler
 {
 
@@ -13,16 +15,21 @@ class Tpex extends Crawler
 
         $filter_date = "{$date['tw_year']}/{$date['month']}/{$date['day']}";
 
+        $url = $this->url.'?'.http_build_query([
+                "l" => "zh-tw",
+                "o" => "json",
+                "d" => $filter_date]);
 
-        $response = file_get_contents($this->url.'?'.http_build_query([
-            "l" => "zh-tw",
-            "o" => "json",
-            "d" => $filter_date]));
+
+        $response = file_get_contents($url);
 
         $json = json_decode($response);
 
-        if($json){
+        if(isset($json->aaData)){
             return $json->aaData;
+        }
+        else{
+            Log::info("No data found on Tpex: {$url} -  ".$response);
         }
         return [];
     }

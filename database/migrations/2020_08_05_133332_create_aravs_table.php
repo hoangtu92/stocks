@@ -16,7 +16,6 @@ class CreateAravsTable extends Migration
         Schema::create('aravs', function (Blueprint $table) {
             $table->id();
             $table->string("code")->nullable(false);
-            $table->string("name");
             $table->decimal("start");
             $table->decimal("max");
             $table->decimal("lowest");

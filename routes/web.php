@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/data/{date?}', "StockController@data");
-Route::get('/arav/{date?}', "StockController@arav");
-Route::get('/dl/{date?}', "StockController@dl");
+Route::get('/arav/{date?}', "StockController@getArav");
+Route::get('/dl/{date?}', "StockController@getDl");
 Route::get('/crawlDataByDate/{date?}', "StockController@crawlDataByDate");
+Route::get("/order", "StockController@order");
+Route::get("/crawlOrderByDate/{date?}", "StockController@crawlOrderByDate");
+Route::get("/crawlOrderToday", "StockController@crawlOrderToday");
