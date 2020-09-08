@@ -11,6 +11,6 @@ class Dl extends Model
     protected $primaryKey = 'id';
     public $incrementing = true;
     public $timestamps = true;
-    public $fillable = ["date", "code", "name", "id", "final", "range", "vol"];
+    public $fillable = ["date", "code", "name", "id", "final", "range", "vol", "agency", "agency_price", "total_agency_vol", "single_agency_vol", "type", "large_trade", "dynamic_rate_sell"];
 
 }

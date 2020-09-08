@@ -26,6 +26,7 @@ class Tpex extends Crawler
         $json = json_decode($response);
 
         if(isset($json->aaData)){
+            
             return $json->aaData;
         }
         else{

@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateDlTable extends Migration
+class CreateFailedCrawlsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,15 +13,12 @@ class CreateDlTable extends Migration
      */
     public function up()
     {
-        Schema::create('dl', function (Blueprint $table) {
+        Schema::create('failed_crawls', function (Blueprint $table) {
             $table->id();
-            $table->string("code")->nullable(false);
-            $table->decimal("final");
-            $table->decimal("range");
-            $table->decimal("vol");
-            $table->date("date");
-
-            $table->timestamps();
+            $table->string("action");
+            $table->integer("restart")->default(0);
+            $table->boolean("resolved")->default(false);
+            $table->timestamp("failed_at");
         });
     }
 
@@ -32,6 +29,6 @@ class CreateDlTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('dl');
+        Schema::dropIfExists('failed_crawls');
     }
 }
