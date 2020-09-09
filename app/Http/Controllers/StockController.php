@@ -8,12 +8,12 @@ use App\Crawler\CrawlGeneralStock;
 use App\Crawler\CrawlGeneralStockFinal;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
-use App\Crawler\HiStock;
-use App\Crawler\MisTwse;
+use App\Crawler\CrawlAgency;
+use App\Crawler\CrawlOrder;
 use App\Crawler\Tpex;
-use App\Crawler\tpex\DailyTradingInfo;
+use App\Crawler\DailyTradingInfo;
 use App\Crawler\Twse;
-use App\Crawler\twse\CrawlGeneralStockToday;
+use App\Crawler\CrawlGeneralStockToday;
 use App\Dl;
 use App\FailedCrawl;
 use App\GeneralStock;
@@ -22,7 +22,6 @@ use App\Stock;
 use DateTime;
 use DOMDocument;
 use Goutte\Client;
-use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\DomCrawler\Field\InputFormField;
@@ -68,7 +67,7 @@ class StockController extends Controller
     }
 
     private function getStockAgent($stockCode, $date, $filter){
-        $hiStock = new HiStock($this->client);
+        $hiStock = new CrawlAgency($this->client);
         return $hiStock->get($stockCode, $date, $filter);
     }
 
@@ -100,7 +99,8 @@ class StockController extends Controller
                 'code' => $data[0],
                 'final' => $this->format_number($data[2]),
                 'range' => $this->format_number($data[3]),
-                'vol' => $this->format_number($data[8])
+                'vol' => $this->format_number($data[8]),
+                'agency' => ''
             ];
 
 
@@ -113,7 +113,7 @@ class StockController extends Controller
 
             $appear_yesterday = Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
 
-            if($d["final"] >= 15
+            if($d["final"] >= 10
                 && $d['range'] >= $this->range_filter
                 && ($d["vol"] > $this->vol_filter || $appear_yesterday)
                 && strlen($d["code"]) <= 4
@@ -159,7 +159,8 @@ class StockController extends Controller
                 'code' => $data[0],
                 'final' => $this->format_number($data[8]),
                 'range' => $this->format_number($data[9]),
-                'vol' => round($this->format_number($data[2])/1000, 2)
+                'vol' => round($this->format_number($data[2])/1000, 2),
+                'agency' => ''
 
             ];
 
@@ -172,7 +173,7 @@ class StockController extends Controller
 
             $appear_yesterday = Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
 
-            if($d["final"] >= 15
+            if($d["final"] >= 10
                 && $d['range'] >= $this->range_filter
                 && ($d["vol"] > $this->vol_filter || $appear_yesterday)
                 && strlen($d["code"]) <= 4
@@ -344,8 +345,8 @@ class StockController extends Controller
         $result = [];
 
         foreach ($today_dl as $dl){
-            $data = new MisTwse($dl->type, $dl->code);
-            if(isset($data->{$key})){
+            $data = new CrawlOrder($dl->type, $dl->code);
+            if(isset($data->{$key}) && $data->{$key}){
 
                 $result[] = $data;
 
@@ -358,10 +359,11 @@ class StockController extends Controller
                     ]);
                 }
 
-                $value = !$data->{$key} ? $data->value : $data->{$key};
-
-                $order->{$key} = $value;
+                $order->{$key} = $data->{$key};
                 $order->save();
+            }
+            else{
+
             }
         }
 
@@ -450,6 +452,38 @@ class StockController extends Controller
             ]);
         }
         return redirect(route("data", ["date" => $filter_date]));
+    }
+
+    public function reCrawlAgency(){
+        $dls = Dl::whereRaw("agency = ''")->get();
+
+
+        if($dls == NULL){
+            return [];
+        }
+
+        $agents = Agent::all("name")->toArray();
+        $agents = array_reduce($agents, function ($t, $e){
+            $t[] = $e["name"];
+            return $t;
+        }, []);
+
+        foreach ($dls as $dl){
+
+            $stockAgents = $this->getStockAgent($dl->code, $dl->date, $agents);
+            if($stockAgents == false){
+                //Make it out of re crawl list
+                $dl->update(['agency' => NULL]);
+            }
+            else{
+                Log::info("Re Crawl Agency for {$dl->code} {$dl->date}");
+                $dl->update($stockAgents);
+            }
+
+
+        }
+
+        return [];
     }
 
     public function crawlGeneralStock($filter_date = null, $key = null){
@@ -577,6 +611,21 @@ class StockController extends Controller
 
         return redirect(route("order", ["filter_date" => $filter_date]));
 
+    }
+
+    public function reCrawlOrder($key = "start"){
+        $missingValueOrders = Order::where("date", $this->previousDay(date("Y-m-d")))
+            ->whereRaw("{$key} IS NULL")->get();
+
+
+        foreach($missingValueOrders as $order){
+
+            $stock = Stock::where("code", $order->code)->first();
+            $data = new CrawlOrder($stock->type, $order->code);
+
+            $order->{$key} = $data->{$key};
+            $order->save();
+        }
     }
 
     public function crawlData($filter_date = null){

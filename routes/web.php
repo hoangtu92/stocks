@@ -3,7 +3,7 @@
 use App\Agent;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
-use App\Crawler\tpex\DailyTradingInfo;
+use App\Crawler\DailyTradingInfo;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -32,6 +32,7 @@ Route::get('/crawl/generalStock/{filter_date?}/{key?}', "StockController@crawlGe
 Route::get('/crawl/generalStockToday/{key}', "StockController@crawlGeneralStockToday")->name("general_stock_today");
 Route::get('/crawl/generalStockFinal/{date}', "StockController@crawlGeneralStockFinal")->name("general_stock_final");
 
+Route::get("/crawl/reAgency", "StockController@reCrawlAgency")->name("re_crawl_agency");
 Route::post("/update_general_predict", "ActionController@update_general_predict")->name("update_general_predict");
 Route::get("/import/agent", function (){
     $agents = [
@@ -568,6 +569,4 @@ Route::get("/import/agent", function (){
 });
 
 
-Route::get("/t/t", function (){
-    echo floatval(preg_replace("/[\,]/", "", "317,091"));
-});
+Route::get("/t/t", "StockController@reCrawlOrder");

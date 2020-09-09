@@ -3,7 +3,7 @@
 namespace App\Console;
 
 use App\Crawler\CrawlGeneralStock;
-use App\Crawler\twse\CrawlGeneralStockToday;
+use App\Crawler\CrawlGeneralStockToday;
 use App\GeneralStock;
 use DateTime;
 use Illuminate\Console\Scheduling\Schedule;
@@ -40,6 +40,11 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
         //Log::info("Every minute run");
+        $schedule->call(function (){
+            file_get_contents(route("re_crawl_agency"));
+        })->everyMinute();
+
+
         $schedule->call(function () {
 
             file_get_contents(route('general_stock'));
@@ -75,8 +80,8 @@ class Kernel extends ConsoleKernel
         })->dailyAt("9:07");
 
         $schedule->call(function (){
-            file_get_contents(route('general_stock_today', ["key" => "today_final"]));
-        })->dailyAt("13:31");
+            file_get_contents(route('general_stock_final', ["date" => date("Y-m-d")]));
+        })->dailyAt("13:35");
 
         $schedule->call(function () {
             file_get_contents(route('crawl_dl'));

@@ -1,10 +1,9 @@
 <?php
 
 
-namespace App\Crawler\twse;
+namespace App\Crawler;
 
 
-use App\Crawler\Crawler;
 use DateTime;
 use Illuminate\Support\Facades\Log;
 

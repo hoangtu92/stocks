@@ -3,11 +3,9 @@
 
 namespace App\Crawler;
 
-
-use Goutte\Client;
 use Illuminate\Support\Facades\Log;
 
-class HiStock extends Crawler
+class CrawlAgency extends Crawler
 {
 
     private $url = "https://histock.tw/stock/branch.aspx";
@@ -47,9 +45,23 @@ class HiStock extends Crawler
            }
         });
 
+
+        if(count($this->data) == 0){
+            //Its really empty
+            return ["agency" => [], "total_agency_vol" => 0, "single_agency_vol" => 0, "agency_price" => 0];
+        }
+
+
+
+
         $data = array_filter($this->data, function ($e) use ($filter) {
             return in_array($e[5], $filter);
         });
+
+        if(count($data) == 0){
+            //No agency match the filter
+            return false;
+        }
 
         $data = array_reduce($data, function ($t, $e){
             $t["agency"][] = $e[5];
@@ -59,6 +71,7 @@ class HiStock extends Crawler
 
             return $t;
         }, ["agency" => [], "total_agency_vol" => 0, "single_agency_vol" => 0, "agency_price" => 0]);
+
 
         $data["agency"] = implode(", ", $data["agency"]);
 

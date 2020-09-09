@@ -1,8 +1,7 @@
 <?php
 
-namespace App\Crawler\tpex;
+namespace App\Crawler;
 
-use App\Crawler\Crawler;
 use Illuminate\Support\Facades\Log;
 
 class DailyTradingInfo extends Crawler {
