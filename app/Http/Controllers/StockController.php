@@ -11,7 +11,7 @@ use App\Crawler\DLIncludeFilter;
 use App\Crawler\CrawlAgency;
 use App\Crawler\CrawlOrder;
 use App\Crawler\Tpex;
-use App\Crawler\DailyTradingInfo;
+use App\Crawler\CrawlLargeTradeRateSell;
 use App\Crawler\Twse;
 use App\Crawler\CrawlGeneralStockToday;
 use App\Dl;
@@ -37,7 +37,8 @@ class StockController extends Controller
     public function __construct(){
         $this->today = date_create(now());
         $this->client = new Client();
-        $data = ["email" => "nancyhsu0511@gmail.com", "password" => "ASDFvcx2z!"];
+        //nancyhsu0511@gmail.com
+        $data = ["email" => "kis77628@gmail.com", "password" => "ASDFvcx2z!"];
 
         $crawler = $this->client->request("GET", "https://histock.tw/login");
         $form = $crawler->selectButton('登入')->form();
@@ -224,7 +225,7 @@ class StockController extends Controller
     }
 
     private function xz($filter_date){
-        $r = new DailyTradingInfo();
+        $r = new CrawlLargeTradeRateSell();
 
         $dls = Dl::join("stocks", "stocks.code", "=", "dl.code")
             ->select(DB::raw("dl.*, stocks.type"))
@@ -477,6 +478,7 @@ class StockController extends Controller
             }
             else{
                 Log::info("Re Crawl Agency for {$dl->code} {$dl->date}");
+                Log::info($stockAgents);
                 $dl->update($stockAgents);
             }
 
@@ -543,6 +545,7 @@ class StockController extends Controller
         $generalStock->today_final = $crawlGeneralStockFinal->value;
         $generalStock->save();
 
+        Log::info("Crawl General Stock Final Today {$date}");
         return redirect(route("general", ["date" => $date]));
 
     }
@@ -559,7 +562,7 @@ class StockController extends Controller
                 break;
             case "today_final":
                 $hour = 13;
-                $minute = 33;
+                $minute = 31;
                 break;
             default:
                 $hour = 9;
@@ -617,6 +620,7 @@ class StockController extends Controller
         $missingValueOrders = Order::where("date", $this->previousDay(date("Y-m-d")))
             ->whereRaw("{$key} IS NULL")->get();
 
+        if(!$missingValueOrders) return;
 
         foreach($missingValueOrders as $order){
 

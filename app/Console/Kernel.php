@@ -2,8 +2,8 @@
 
 namespace App\Console;
 
-use App\Crawler\CrawlGeneralStock;
-use App\Crawler\CrawlGeneralStockToday;
+use App\Crawler\Crawler;
+use App\Crawler\RealTime;
 use App\GeneralStock;
 use DateTime;
 use Illuminate\Console\Scheduling\Schedule;
@@ -21,14 +21,6 @@ class Kernel extends ConsoleKernel
         //
     ];
 
-    public function nextDay($day){
-        $previous_day = strtotime("$day +1 day");
-        $previous_day_date = getdate($previous_day);
-
-        if($previous_day_date["wday"] == 0 || $previous_day_date["wday"] == 6)
-            return $this->nextDay(date('Y-m-d', $previous_day));
-        else return date('Y-m-d', $previous_day);
-    }
 
     /**
      * Define the application's command schedule.
@@ -41,47 +33,42 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')->hourly();
         //Log::info("Every minute run");
         $schedule->call(function (){
-            file_get_contents(route("re_crawl_agency"));
-        })->everyMinute();
+            Log::info("rerawl agency task");
+            $d = new DateTime();
+
+            $p = new DateTime();
+            $p->setTime(18, 12, 0);
+
+            $t = new DateTime();
+            $t->setTime(18, 30, 0);
+
+            if($d >= $p && $d <= $t)
+                file_get_contents(route("re_crawl_agency"));
+
+        })->everyMinute()->between("18:12", "18:30");
 
 
         $schedule->call(function () {
 
-            file_get_contents(route('general_stock'));
+            /**
+             * Start to monitor stock data
+             */
+            Log::info("Start realtime crawl");
+            $realTime = new RealTime();
+            $realTime->monitor();
 
-
-            $tmrGeneralProduct = GeneralStock::where("date", $this->nextDay(date("Y-m-d")))->first();
+           /* $tmrGeneralProduct = GeneralStock::where("date", (new Crawler)->nextDay(date("Y-m-d")))->first();
 
             if(!$tmrGeneralProduct)
                 $tmrGeneralProduct = new GeneralStock([
                     "date" => $this->nextDay(date("Y-m-d"))
                 ]);
 
-            $tmrGeneralProduct->save();
+            $tmrGeneralProduct->save();*/
 
 
-        })->dailyAt("09:00");
+        })->name("realtime")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
 
-        $schedule->call(function (){
-            file_get_contents(route('general_stock_today', ["key" => "general_start"]));
-        })->dailyAt("09:01");
-
-
-        $schedule->call(function () {
-            file_get_contents(route('crawl_order', ['key' => 'start']));
-        })->dailyAt("9:02");
-
-        $schedule->call(function (){
-            file_get_contents(route('general_stock_today', ["key" => "price_905"]));
-        })->dailyAt("09:05");
-
-        $schedule->call(function () {
-            file_get_contents(route('crawl_order', ['key' => 'price_909']));
-        })->dailyAt("9:07");
-
-        $schedule->call(function (){
-            file_get_contents(route('general_stock_final', ["date" => date("Y-m-d")]));
-        })->dailyAt("13:35");
 
         $schedule->call(function () {
             file_get_contents(route('crawl_dl'));

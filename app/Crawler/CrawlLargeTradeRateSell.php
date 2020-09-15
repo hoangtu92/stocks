@@ -4,7 +4,7 @@ namespace App\Crawler;
 
 use Illuminate\Support\Facades\Log;
 
-class DailyTradingInfo extends Crawler {
+class CrawlLargeTradeRateSell extends Crawler {
 
     private function getPrevious3Days($date){
 

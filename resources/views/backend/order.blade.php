@@ -53,14 +53,14 @@
 
         </tbody>
     </table>
-    <br>
+   {{-- <br>
     <input type="hidden" name="date" value="{{ $tomorrow }}">
     <label>
         <select name="general_predict" onchange="this.form.submit()">
             <option @if($generalStock->general_predict == 1) selected @endif value="{{\App\GeneralStock::UP}}">漲</option>
             <option @if($generalStock->general_predict == 0) selected @endif value="{{\App\GeneralStock::DOWN}}">跌</option>
         </select>
-    </label>
+    </label>--}}
 </form>
 <script>
     @if(\Session::has('success'))
