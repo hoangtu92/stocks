@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Agent;
 use App\Arav;
+use App\Crawler\Crawler;
 use App\Crawler\CrawlGeneralStock;
 use App\Crawler\CrawlGeneralStockFinal;
+use App\Crawler\CrawlHoliday;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
 use App\Crawler\CrawlAgency;
@@ -17,6 +19,7 @@ use App\Crawler\CrawlGeneralStockToday;
 use App\Dl;
 use App\FailedCrawl;
 use App\GeneralStock;
+use App\Holiday;
 use App\Order;
 use App\Stock;
 use DateTime;
@@ -660,4 +663,23 @@ class StockController extends Controller
 
     }
 
+
+    public function crawlHoliday($year){
+
+        if(!isset($year)) $year = date("Y");
+
+        $crawler = new CrawlHoliday($year);
+
+        foreach ($crawler->data as $h){
+
+            $holiday = Holiday::where("date", $h['date'])->first();
+
+            if(!$holiday){
+                $holiday = new Holiday($h);
+                $holiday->save();
+            }
+
+        }
+
+    }
 }

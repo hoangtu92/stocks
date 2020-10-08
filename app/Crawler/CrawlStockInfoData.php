@@ -2,9 +2,6 @@
 
 namespace App\Crawler;
 
-use DateTime;
-use Illuminate\Support\Facades\Log;
-
 class CrawlStockInfoData extends Crawler{
 
     public $data = [];
@@ -12,7 +9,7 @@ class CrawlStockInfoData extends Crawler{
         parent::__construct();
 
         $stocks_str = implode("|", array_reduce($stocks, function ($t, $e){
-            $t[] = "{$e->type}_{$e->code}.tw";
+            $t[] = "{$e['type']}_{$e['code']}.tw";
             return $t;
         }, []));
 
@@ -47,7 +44,7 @@ class CrawlStockInfoData extends Crawler{
 
                 $this->data[$stock->c] = [
                     'code' => $stock->c,
-                    'date' => $this->previousDay(date("Y-m-d")),
+                    'date' => date("Y-m-d"),
                     'tlong' => (int) $stock->tlong,
                     'latest_trade_price' => $latest_trade_price,
                     'trade_volume' => $trade_volume,

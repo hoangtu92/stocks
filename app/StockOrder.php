@@ -19,11 +19,15 @@ class StockOrder extends Model
         "fee",
         "tax",
         "date",
+        "tlong",
         "type",
+        "deal_type",
         "created_at",
         "modified_at"
     ];
 
     const BUY = "1";
     const SELL = "0";
+    const SHORT_SELL = "0";
+    const BUY_LONG = "1";
 }

@@ -3,7 +3,7 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="b7a76896-b730-4642-b05a-d86916373be4" name="ovh" url="http://139.99.61.45">
-        <fileTransfer host="139.99.61.45" port="22" rootFolder="/var/www" accessType="SFTP">
+        <fileTransfer host="139.99.61.45" port="22" rootFolder="/var/www/html" accessType="SFTP">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

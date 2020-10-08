@@ -55,6 +55,20 @@ class CrawlLargeTradeRateSell extends Crawler {
         $filter_date = "{$date['tw_year']}/{$date['month']}";
 
 
+        if($date['month'] == 1){
+            $pm = 12;
+            $py = $date['tw_year'] - 1;
+        }
+        else{
+            $pm = $date['month'] - 1;
+            $py = $date['tw_year'];
+        }
+
+        if($pm < 10) $pm = "0{$pm}";
+
+        $filter_date2 = "{$py}/{$pm}";
+
+
 
         $url = 'https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php?'.http_build_query([
                 "l" => "zh-tw",
@@ -66,7 +80,23 @@ class CrawlLargeTradeRateSell extends Crawler {
         $res = json_decode($this->get_content($url));
 
         if(isset($res->aaData)){
-            return $this->getLargeTrade($res->aaData, $date);
+
+            $url2 = 'https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php?'.http_build_query([
+                    "l" => "zh-tw",
+                    "o" => "json",
+                    "stkno" => $stock_code,
+                    "d" => $filter_date2]);
+
+            $res2 = json_decode($this->get_content($url2));
+
+            $result = $res->aaData;
+            if(isset($res2->aaData)){
+                $result = array_merge($res2->aaData, $res->aaData);
+            }
+
+            Log::info($url2.json_encode($result));
+
+            return $this->getLargeTrade($result, $date);
         }
         Log::info("Failed to get data {$url}");
 
@@ -79,18 +109,40 @@ class CrawlLargeTradeRateSell extends Crawler {
 
         $filter_date = "{$date['year']}{$date['month']}{$date['day']}";
 
+        if($date['month'] == 1){
+            $pm = 12;
+            $py = $date['year'] - 1;
+        }
+        else{
+            $pm = $date['month'] - 1;
+            $py = $date['year'];
+        }
+        if($pm < 10) $pm = "0{$pm}";
+        $filter_date2 = "{$py}{$pm}01";
+
 
         $url = 'https://www.twse.com.tw/exchangeReport/STOCK_DAY?'.http_build_query([
                 "response" => "json",
                 "stockNo" => $stock_code,
                 "date" => $filter_date]);
 
-        $content = file_get_contents($url);
+        $res = json_decode($this->get_content($url));
 
-        $response = json_decode($content);
+        if(isset($res->data)){
+            $url2 = 'https://www.twse.com.tw/exchangeReport/STOCK_DAY?'.http_build_query([
+                    "response" => "json",
+                    "stockNo" => $stock_code,
+                    "date" => $filter_date2]);
 
-        if(isset($response->data)){
-            return $this->getLargeTrade($response->data, $date);
+            $res2 = json_decode($this->get_content($url2));
+
+            $result = $res->data;
+            if(isset($res2->data)){
+                $result = array_merge($res2->data, $res->data);
+            }
+            Log::info($url2.json_encode($result));
+
+            return $this->getLargeTrade($result, $date);
         }
 
         Log::info("Failed to get data {$url}");

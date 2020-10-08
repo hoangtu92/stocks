@@ -1,10 +1,7 @@
 <?php
 
-use App\Agent;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
-use App\Crawler\CrawlLargeTradeRateSell;
-use App\Crawler\RealTime;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -29,17 +26,50 @@ Route::get('/crawl/arav/{date?}', "StockController@crawlArav")->name("crawl_arav
 Route::get('/crawl/dl/{date?}', "StockController@crawlDl")->name("crawl_dl");
 Route::get('/crawl/xz/{date?}', "StockController@crawlXZ")->name("crawl_xz");
 Route::get('/crawl/agency/{date?}', "StockController@crawlAgency")->name("crawl_agency");
+Route::get('/crawl/holiday/{year?}', "StockController@crawlHoliday")->name("crawl_holiday");
 
 Route::get('/crawl/generalStock/{filter_date?}/{key?}', "StockController@crawlGeneralStock")->name("general_stock");
 Route::get('/crawl/generalStockToday/{key}', "StockController@crawlGeneralStockToday")->name("general_stock_today");
 Route::get('/crawl/generalStockFinal/{date}', "StockController@crawlGeneralStockFinal")->name("general_stock_final");
 Route::get("/crawl/reAgency", "StockController@reCrawlAgency")->name("re_crawl_agency");
 
-Route::get("/test", "OrderController@test")->name("test");
-Route::get("/place_order", "OrderController@place_order");
+Route::get("/test/{filter_date?}", "OrderController@test")->name("test");
+Route::get("/place_order/{filter_date?}", "OrderController@place_order");
 Route::post("/update_general_predict", "ActionController@update_general_predict")->name("update_general_predict");
-Route::get("tt", function (){
-   echo date("Y-m-d H:i:s A");
-    $realTime = new RealTime();
-    $realTime->monitor();
+Route::post("/update_final_predict", "ActionController@update_final_predict")->name("update_final_predict");
+Route::post("/update_order", "ActionController@update_order")->name("update_order");
+Route::get("tt", function () {
+    $crawler = new App\Crawler\Crawler();
+    $r = [];
+
+    $list = $crawler->getStocksURL();
+    foreach ($list as $l){
+        $rs = json_decode($crawler->get_content($l->url));
+        if(isset($rs->msgArray)){
+            $r = array_merge($r, $rs->msgArray);
+        }
+
+        //sleep(1);
+    }
+
+    echo json_encode($r);
+
+});
+
+Route::get("/tt2", function () {
+    //$crawler = new App\Crawler\Crawler();
+    /*$r = $crawler->curlGet("http://www.cmoney.tw/notice/chart/stock-chart-service.ashx", [
+        "id" => 6233,
+        "date" => "",
+        "action" => "r",
+        "ck" => "LKo3fMRv4ODb{VRQeQnAWNCjuR8nMAk7xMUR0JDVQAorTQVcsHCMHWjMpOErz",
+        "_" => 1601889319824
+    ], [
+        "referer" => "http://www.cmoney.tw/notice/chart/stockchart.aspx?action=r&id=6233",
+        "accept" => "application/json, text/javascript, ",
+    ]);
+
+    var_dump($r);*/
+
+    //echo $crawler->previousDay("2020-10-05");
 });

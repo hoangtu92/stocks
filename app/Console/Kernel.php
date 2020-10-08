@@ -2,10 +2,7 @@
 
 namespace App\Console;
 
-use App\Crawler\Crawler;
 use App\Crawler\RealTime;
-use App\GeneralStock;
-use DateTime;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Support\Facades\Log;
@@ -31,22 +28,16 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         // $schedule->command('inspire')->hourly();
+
+        $schedule->call(function () {
+            //file_get_contents("");
+        })->dailyAt("09:00");
+
         //Log::info("Every minute run");
         $schedule->call(function (){
-            Log::info("rerawl agency task");
-            $d = new DateTime();
-
-            $p = new DateTime();
-            $p->setTime(18, 12, 0);
-
-            $t = new DateTime();
-            $t->setTime(18, 30, 0);
-
-            if($d >= $p && $d <= $t)
-                file_get_contents(route("re_crawl_agency"));
+            file_get_contents(route("re_crawl_agency"));
 
         })->everyMinute()->between("18:12", "18:30");
-
 
         $schedule->call(function () {
 
@@ -55,19 +46,17 @@ class Kernel extends ConsoleKernel
              */
             Log::info("Start realtime crawl");
             $realTime = new RealTime();
-            $realTime->monitor();
-
-           /* $tmrGeneralProduct = GeneralStock::where("date", (new Crawler)->nextDay(date("Y-m-d")))->first();
-
-            if(!$tmrGeneralProduct)
-                $tmrGeneralProduct = new GeneralStock([
-                    "date" => $this->nextDay(date("Y-m-d"))
-                ]);
-
-            $tmrGeneralProduct->save();*/
+            $realTime->monitor(date("Y-m-d"));
 
 
         })->name("realtime")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
+
+
+        $schedule->call(function (){
+
+            file_get_contents(route('crawl_holiday'));
+
+        })->name("holiday")->yearly();
 
 
         $schedule->call(function () {

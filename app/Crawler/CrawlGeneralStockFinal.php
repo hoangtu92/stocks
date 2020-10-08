@@ -30,7 +30,7 @@ class CrawlGeneralStockFinal extends Crawler
 
         if(isset($json->data)){
 
-            foreach($json->data as $d){
+            /*foreach($json->data as $d){
                 $date = $this->date_from_tw($d[0]);
                 $generalStock = GeneralStock::where("date", $date)->first();
                 if(!$generalStock){
@@ -41,7 +41,7 @@ class CrawlGeneralStockFinal extends Crawler
                 }
                 $generalStock->today_final = $this->format_number($d[4]);
                 $generalStock->save();
-            }
+            }*/
 
             $data =  array_reduce($json->data, function ($t, $e){
                 $t[$e[0]] = $e;
@@ -53,6 +53,7 @@ class CrawlGeneralStockFinal extends Crawler
             if( isset($data[$filter_date]) && $data[$filter_date][4]){
                 $this->value =  $this->format_number($data[$filter_date][4]);
             }
+            //Log::info(json_encode([$data, $this->value]));
 
         }
         else{

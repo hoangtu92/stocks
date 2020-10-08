@@ -25,33 +25,92 @@
         display: block;
     }
 </style>
-<form action="{{ route("update_general_predict") }}" method="post">
-    @csrf
-    <table border='1' cellpadding='5' cellspacing='0'>
-        <thead>
-        <tr>
+<h1>未實現損益</h1>
 
-            @foreach($data[array_keys($data)[0]] as $key => $value)
-                @if(!isset($header[$key])) @continue @endif
-                <th>{{$header[$key]}}<br><small>{{$key}}</small></th>
-            @endforeach
+<table border='1' cellpadding='5' cellspacing='0'>
+    <thead>
+    <tr style="background-color: rgba(113,179,252,0.3)">
 
-        </tr>
-        </thead>
-        <tbody>
-        @foreach($data as $tr)
-            <tr>
+        @foreach($header as $key => $value)
+            <th>{{$value}}<br><small>{{$key}}</small></th>
+        @endforeach
+
+    </tr>
+    </thead>
+    <tbody>
+    @if(count($openDeal) > 0)
+        @foreach($openDeal as $tr)
+            <tr style="background-color: rgba(121,252,0,0.05)">
 
                 @foreach($tr as $key=> $td)
                     @if(!isset($header[$key])) @continue @endif
-                    <td>{{$td}}@if(preg_match("/range|rate/", $key))%@endif</td>
+                    @if(is_numeric($td) && preg_match("/profit/", $key))
+                            @if($td <= 0)
+                                <td style="color: green">{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
+                                @else
+                                <td style="color: red">{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
+                                @endif
+                        @else
+                            <td>{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
+                        @endif
+
                 @endforeach
 
 
             </tr>
         @endforeach
+    @endif
+    </tbody>
+</table>
 
-        </tbody>
-    </table>
-</form>
+<hr>
+<h1>已實現損益
+</h1>
+
+<table border='1' cellpadding='5' cellspacing='0'>
+    <thead>
+    <tr style="background-color: rgba(113,179,252,0.3)">
+
+        @foreach($header2 as $key => $value)
+            <th>{{$value}}<br><small>{{$key}}</small></th>
+        @endforeach
+
+    </tr>
+    </thead>
+    <tbody>
+    @if(count($closeDeal) > 0)
+        @foreach($closeDeal as $tr)
+            <tr style="background-color: rgba(121,252,0,0.05)">
+
+                    <td>{{$tr->date}}</td>
+                    <td>{{$tr->open_time}}</td>
+                    <td>{{$tr->close_time}}</td>
+                    <td>{{$tr->stock}}</td>
+                    <td>{{$tr->qty}}</td>
+                    @if($tr->type == 'SELL')
+                        <td>{{$tr->first_price}}</td>
+                        <td>{{$tr->second_price}}</td>
+                    @else
+                        <td>{{$tr->second_price}}</td>
+                        <td>{{$tr->first_price}}</td>
+                    @endif
+                    <td @if($tr->profit <= 0)  style="color: green" @else  style="color: red" @endif>{{$tr->profit}}</td>
+                    <td @if($tr->profit_percent <= 0)  style="color: green" @else  style="color: red" @endif>{{$tr->profit_percent}}%</td>
+                    <td>{{$tr->fee}}</td>
+                    <td>{{$tr->tax}}</td>
+                    <td>{{$tr->type}}</td>
+
+
+            </tr>
+        @endforeach
+    @endif
+    </tbody>
+</table>
+
+
+<script>
+    setInterval(function () {
+        window.location.reload();
+    }, 5000)
+</script>
 

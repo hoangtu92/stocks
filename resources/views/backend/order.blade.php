@@ -25,46 +25,41 @@
         display: block;
     }
 </style>
-<form action="{{ route("update_general_predict") }}" method="post">
+<form id="update" action="{{route("update_order")}}" method="post">
     @csrf
-    <table border='1' cellpadding='5' cellspacing='0'>
-        <thead>
-        <tr>
 
-            @foreach($data[array_keys($data)[0]] as $key => $value)
-                @if(!isset($header[$key])) @continue @endif
-            <th>{{$header[$key]}}<br><small>{{$key}}</small></th>
-            @endforeach
+    <input type="hidden" name="date" value="{{$filter_date}}">
+<table border='1' cellpadding='5' cellspacing='0'>
+    <thead>
+    <tr>
 
-        </tr>
-        </thead>
-        <tbody>
-        @foreach($data as $tr)
-        <tr class="{{"level-{$tr->appearance}"}}">
+        @foreach($data[array_keys($data)[0]] as $key => $value)
+            @if(!isset($header[$key])) @continue @endif
+        <th>{{$header[$key]}}<br><small>{{$key}}</small></th>
+        @endforeach
+        <th>Ticket</th>
 
-            @foreach($tr as $key=> $td)
-                @if(!isset($header[$key])) @continue @endif
-            <td>{{$td}}@if(preg_match("/range|rate/", $key))%@endif</td>
-            @endforeach
+    </tr>
+    </thead>
+    <tbody>
+    @foreach($data as $tr)
+    <tr class="{{"level-{$tr->appearance}"}}">
 
-
-        </tr>
+        @foreach($tr as $key=> $td)
+            @if(!isset($header[$key])) @continue @endif
+        <td>{{$td}}@if(preg_match("/range|rate/", $key))%@endif</td>
         @endforeach
 
-        </tbody>
-    </table>
-   {{-- <br>
-    <input type="hidden" name="date" value="{{ $tomorrow }}">
-    <label>
-        <select name="general_predict" onchange="this.form.submit()">
-            <option @if($generalStock->general_predict == 1) selected @endif value="{{\App\GeneralStock::UP}}">漲</option>
-            <option @if($generalStock->general_predict == 0) selected @endif value="{{\App\GeneralStock::DOWN}}">跌</option>
-        </select>
-    </label>--}}
+        <td><select name="borrow_ticket[{{$tr->code}}]">
+                <option value="0" @if($tr->borrow_ticket == 0) selected @endif>0</option>
+                <option value="1" @if($tr->borrow_ticket == 1) selected @endif>1</option>
+            </select> </td>
+
+    </tr>
+    @endforeach
+
+    </tbody>
+</table>
+    <input type="submit" value="Save" style="padding: 5px 10px; float: right; margin-top: 20px">
 </form>
-<script>
-    @if(\Session::has('success'))
-        alert("{{\Session::get("success")}}");
-        @endif
-</script>
 

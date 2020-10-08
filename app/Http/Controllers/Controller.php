@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Holiday;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Foundation\Bus\DispatchesJobs;
 use Illuminate\Foundation\Validation\ValidatesRequests;
@@ -51,15 +52,43 @@ class Controller extends BaseController
         return $data;
     }
 
+    public function getDate($date){
+        if(!$date) {
+            $date = date_create(now());
+        }
+        if(is_string($date)){
+            $date = date_create($date);
+        }
+
+        $year = $date->format("Y");
+        $month = $date->format("m");
+        $day = $date->format("d");
+        $tw_year = $year - 1911;
+
+        return [
+            'year' => $year,
+            'month' => $month,
+            'day' => $day,
+            'tw_year' => $tw_year
+        ];
+    }
+
     public function format_number($value){
         return floatval(preg_replace("/[\,]/", "", $value));
     }
 
     public function previousDay($day){
+        $date = $this->getDate($day);
         $previous_day = strtotime("$day -1 day");
         $previous_day_date = getdate($previous_day);
 
-        if($previous_day_date["wday"] == 0 || $previous_day_date["wday"] == 6)
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$date['year']}")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+
+        if($previous_day_date["wday"] == 0 || $previous_day_date["wday"] == 6 || in_array(date('Y-m-d', $previous_day), $holiday))
             return $this->previousDay(date('Y-m-d', $previous_day));
         else return date('Y-m-d', $previous_day);
     }
