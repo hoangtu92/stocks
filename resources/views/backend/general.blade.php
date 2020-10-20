@@ -44,7 +44,18 @@
 
                 @foreach($tr as $key=> $td)
                     @if(!isset($header[$key])) @continue @endif
-                    <td>@if($key == "predict_final") <input type="number" class="ajax-field" name="predict_final[{{$tr->date}}]" value="{{$td}}"> @else {{$td}} @endif
+                    <td>@if($key == "predict_final") <input type="number" class="ajax-field" name="predict_final[{{$tr->date}}]" value="{{$td}}">
+                        @elseif($key == "custom_general_predict")
+                            <select class="ajax-field" name="custom_general_predict[{{$tr->date}}]">
+                                <option value="" @if($td == null) selected @endif>Auto</option>
+                                <option value="-1" @if($td == "-1") selected @endif>跌</option>
+                                <option value="1" @if($td == "1") selected @endif>漲</option>
+                            </select>
+                        @elseif($key == "predict_BK")
+                            @if($td < 0) 跌 @else 漲 @endif
+                        @else
+                        {{$td}}
+                        @endif
                         @if(preg_match("/range|rate/", $key))%@endif</td>
                 @endforeach
 

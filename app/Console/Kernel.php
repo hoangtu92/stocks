@@ -29,18 +29,19 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
 
+        /*$schedule->call(function () {
+            $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
+            Log::debug($r);
+        })->dailyAt("08:30");
+
         $schedule->call(function () {
-            //file_get_contents("");
-        })->dailyAt("09:00");
+            $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/logout");
+            Log::debug($r);
+        })->dailyAt("14:30");*/
 
         //Log::info("Every minute run");
-        $schedule->call(function (){
-            file_get_contents(route("re_crawl_agency"));
-
-        })->everyMinute()->between("18:12", "18:30");
 
         $schedule->call(function () {
-
             /**
              * Start to monitor stock data
              */
@@ -49,7 +50,7 @@ class Kernel extends ConsoleKernel
             $realTime->monitor(date("Y-m-d"));
 
 
-        })->name("realtime")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
+        })->name("get_realtime_5")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
 
 
         $schedule->call(function (){
@@ -69,8 +70,11 @@ class Kernel extends ConsoleKernel
 
         $schedule->call(function () {
             file_get_contents(route('crawl_xz'));
-            file_get_contents(route('crawl_agency'));
         })->dailyAt("18:10");
+
+        $schedule->call(function (){
+            file_get_contents(route("re_crawl_agency"));
+        })->everyMinute()->between("18:10", "18:30");
 
 
     }

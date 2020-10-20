@@ -21,16 +21,12 @@ Route::get('/data/{date?}', "FrontController@data")->name("data");
 Route::get('/general/{date?}', "FrontController@generalStock")->name("general");
 
 Route::get('/crawl/data/{date?}', "StockController@crawlData")->name("crawl_data_by_date");
-Route::get("/crawl/order/{key}/{date?}", "StockController@crawlOrder")->name("crawl_order");
 Route::get('/crawl/arav/{date?}', "StockController@crawlArav")->name("crawl_arav");
 Route::get('/crawl/dl/{date?}', "StockController@crawlDl")->name("crawl_dl");
 Route::get('/crawl/xz/{date?}', "StockController@crawlXZ")->name("crawl_xz");
 Route::get('/crawl/agency/{date?}', "StockController@crawlAgency")->name("crawl_agency");
 Route::get('/crawl/holiday/{year?}', "StockController@crawlHoliday")->name("crawl_holiday");
 
-Route::get('/crawl/generalStock/{filter_date?}/{key?}', "StockController@crawlGeneralStock")->name("general_stock");
-Route::get('/crawl/generalStockToday/{key}', "StockController@crawlGeneralStockToday")->name("general_stock_today");
-Route::get('/crawl/generalStockFinal/{date}', "StockController@crawlGeneralStockFinal")->name("general_stock_final");
 Route::get("/crawl/reAgency", "StockController@reCrawlAgency")->name("re_crawl_agency");
 
 Route::get("/test/{filter_date?}", "OrderController@test")->name("test");
@@ -43,21 +39,23 @@ Route::get("tt", function () {
     $r = [];
 
     $list = $crawler->getStocksURL();
+
     foreach ($list as $l){
-        $rs = json_decode($crawler->get_content($l->url));
+        echo $l->url."<br>";
+        /*$rs = json_decode($crawler->get_content($l->url));
         if(isset($rs->msgArray)){
             $r = array_merge($r, $rs->msgArray);
-        }
+        }*/
 
         //sleep(1);
     }
 
-    echo json_encode($r);
+    //echo json_encode($r);
 
 });
 
 Route::get("/tt2", function () {
-    //$crawler = new App\Crawler\Crawler();
+    $crawler = new App\Crawler\Crawler();
     /*$r = $crawler->curlGet("http://www.cmoney.tw/notice/chart/stock-chart-service.ashx", [
         "id" => 6233,
         "date" => "",
@@ -72,4 +70,12 @@ Route::get("/tt2", function () {
     var_dump($r);*/
 
     //echo $crawler->previousDay("2020-10-05");
+
+    echo $crawler->curlGet("http://google.com");
+
+
+});
+
+Route::get("/ip", function (\Illuminate\Http\Request $request){
+   echo $request->getClientIp();
 });

@@ -68,8 +68,6 @@ class CrawlLargeTradeRateSell extends Crawler {
 
         $filter_date2 = "{$py}/{$pm}";
 
-
-
         $url = 'https://www.tpex.org.tw/web/stock/aftertrading/daily_trading_info/st43_result.php?'.http_build_query([
                 "l" => "zh-tw",
                 "o" => "json",
@@ -94,7 +92,7 @@ class CrawlLargeTradeRateSell extends Crawler {
                 $result = array_merge($res2->aaData, $res->aaData);
             }
 
-            Log::info($url2.json_encode($result));
+            # Log::info($url2.json_encode($result));
 
             return $this->getLargeTrade($result, $date);
         }
@@ -140,7 +138,7 @@ class CrawlLargeTradeRateSell extends Crawler {
             if(isset($res2->data)){
                 $result = array_merge($res2->data, $res->data);
             }
-            Log::info($url2.json_encode($result));
+            #Log::info($url2.json_encode($result));
 
             return $this->getLargeTrade($result, $date);
         }

@@ -2,13 +2,15 @@
 
 namespace App\Crawler;
 
+use App\StockPrice;
+
 class CrawlStockInfoData extends Crawler{
 
     public $data = [];
-    public function __construct($stocks){
+    public function __construct($url){
         parent::__construct();
 
-        $stocks_str = implode("|", array_reduce($stocks, function ($t, $e){
+        /*$stocks_str = implode("|", array_reduce($stocks, function ($t, $e){
             $t[] = "{$e['type']}_{$e['code']}.tw";
             return $t;
         }, []));
@@ -17,7 +19,7 @@ class CrawlStockInfoData extends Crawler{
         $url = 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?'.http_build_query([
                 "ex_ch" => $stocks_str,
                 "t" => time()
-            ]);
+            ]);*/
 
         $response = $this->get_content($url);
 
@@ -29,9 +31,9 @@ class CrawlStockInfoData extends Crawler{
 
 
             foreach ($json->msgArray as $stock){
-                $latest_trade_price = $this->format_number($stock->z);
-                $trade_volume = $this->format_number($stock->tv);
-                $accumulate_trade_volume = $this->format_number($stock->v);
+                $latest_trade_price = isset($stock->z) ? $this->format_number($stock->z) : 0;
+                $trade_volume = isset($stock->tv) ? $this->format_number($stock->tv) : 0;
+                $accumulate_trade_volume = isset($stock->v) ? $this->format_number($stock->v) : 0;
 
                 $best_bid_price = explode("_", $stock->b);
                 $best_bid_volume = explode("_", $stock->g);
@@ -42,7 +44,7 @@ class CrawlStockInfoData extends Crawler{
                 $high = $this->format_number($stock->h);
                 $low = $this->format_number($stock->l);
 
-                $this->data[$stock->c] = [
+                $stockInfo = [
                     'code' => $stock->c,
                     'date' => date("Y-m-d"),
                     'tlong' => (int) $stock->tlong,
@@ -58,12 +60,24 @@ class CrawlStockInfoData extends Crawler{
                     'low' => $low,
                 ];
 
+                //If stock price is not exists. create
+                $stockPrice = StockPrice::where("code", $stock->c)
+                    ->where("date", $stockInfo['date'])
+                    ->where("tlong", $stockInfo["tlong"])
+                    ->first();
+
+                if (!$stockPrice) {
+                    $stockPrice = new StockPrice($stockInfo);
+                    $stockPrice->save();
+                }
+
+                $this->data[$stock->c] = $stockPrice;
+
+
+
             }
 
 
         }
-
-        return [];
-
     }
 }

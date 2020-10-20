@@ -68,6 +68,7 @@
         <td>{{$tr->max}}</td>
         <td>{{$tr->lowest}}</td>
         <td>{{$tr->arav_final}}</td>
+        <td>{{$tr->price_range}}</td>
         <td>{{$tr->order_price_range}}</td>
         <td>{{$tr->price_907}}</td>
 

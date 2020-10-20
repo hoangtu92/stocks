@@ -13,6 +13,6 @@ class GeneralStock extends Model
     public $timestamps = true;
     public $fillable = ["id", "date", "general_start", "price_905", "today_final"];
 
-    const UP = 1;
-    const DOWN = 0;
+    const UP = "1";
+    const DOWN = "-1";
 }

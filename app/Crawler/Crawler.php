@@ -5,6 +5,7 @@ namespace App\Crawler;
 
 
 use App\Dl;
+use App\Dl2;
 use App\GeneralPrice;
 use App\GeneralStock;
 use App\Holiday;
@@ -16,6 +17,7 @@ use ErrorException;
 use Goutte\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use const http\Client\Curl\PROXY_HTTP;
 
 class Crawler
 {
@@ -84,13 +86,43 @@ class Crawler
         return $crawler->filter($selector)->last();
     }
 
-    public function curlGet($url, $params, $headers = []){
+    public function curlGet($url, $params = [], $headers = []){
+        $proxy = [
+            "23.254.25.196:3128",
+            "23.236.253.222:3128",
+            "45.57.151.193:3128",
+            "196.17.214.46:3128",
+            "45.57.151.211:3128",
+            "23.254.25.25:3128",
+            "196.18.146.111:3128",
+            "196.17.214.252:3128",
+            "45.57.151.129:3128",
+            "23.236.253.238:3128",
+            "104.144.248.57:3128",
+            "196.18.146.39:3128",
+            "104.144.248.54:3128",
+            "196.18.146.164:3128",
+            "104.144.248.52:3128",
+            "23.236.253.134:3128",
+            "196.18.146.244:3128",
+            "196.17.214.183:3128",
+            "104.144.248.51:3128",
+            "23.254.25.166:3128",
+            "23.236.253.181:3128",
+            "45.57.151.108:3128",
+            "196.17.214.20:3128",
+            "23.254.25.174:3128",
+            "104.144.248.49:3128",
+        ];
+
+        $p = rand(0, count($proxy)-1);
+       // echo "connect using proxy {$proxy[$p]}<br>";
         curl_setopt($this->ch, CURLOPT_URL, $url."?".http_build_query($params));
         curl_setopt($this->ch, CURLOPT_POST, false);
         curl_setopt($this->ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($this->ch, CURLOPT_PROXY, $proxy[$p]);
+        //curl_setopt($this->ch, CURLOPT_PROXY, "103.249.100.152:80");
         $data = curl_exec($this->ch);
-
-        var_dump(curl_getinfo($this->ch));
 
         if(curl_errno($this->ch)){
             print curl_error($this->ch);
@@ -126,7 +158,7 @@ class Crawler
         $previous_day = strtotime("$day -1 day");
         $previous_day_date = getdate($previous_day);
 
-        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$date['year']}")->get()->toArray();
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  '{$date['year']}'")->get()->toArray();
         $holiday = array_reduce($h, function ($t, $e){
             $t[] = $e['date'];
             return $t;
@@ -138,12 +170,19 @@ class Crawler
     }
 
     public function nextDay($day){
-        $previous_day = strtotime("$day +1 day");
-        $previous_day_date = getdate($previous_day);
+        $date = $this->getDate($day);
+        $next_day = strtotime("$day +1 day");
+        $next_day_date = getdate($next_day);
 
-        if($previous_day_date["wday"] == 0 || $previous_day_date["wday"] == 6)
-            return $this->nextDay(date('Y-m-d', $previous_day));
-        else return date('Y-m-d', $previous_day);
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  '{$date['year']}'")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+
+        if($next_day_date["wday"] == 0 || $next_day_date["wday"] == 6 || in_array(date('Y-m-d', $next_day), $holiday))
+            return $this->nextDay(date('Y-m-d', $next_day));
+        else return date('Y-m-d', $next_day);
     }
 
     public function previousDayJoin($day, $filter_date){
@@ -153,7 +192,7 @@ class Crawler
         $data =  DB::table("dl")
             ->addSelect("dl.code")
             ->addSelect(DB::raw("COUNT(*) as count"))
-            ->where("date", "=", $d)
+            ->where("dl_date", "=", $d)
             ->whereRaw("dl.agency IS NOT NULL")
             ->where("dl.final", ">=", 10)
             ->where("dl.final", "<", 170)
@@ -200,9 +239,9 @@ class Crawler
 
         $data = DB::table("dl")
             ->leftJoin("aravs", function ($join) {
-                $join->on("dl.code", "=", "aravs.code")->whereRaw(DB::raw("((DAYOFWEEK(dl.date) < 6 AND DAYOFWEEK(dl.date) > 1 AND DATEDIFF(aravs.date, dl.date) = 1)
-                OR (DAYOFWEEK(dl.date) = 6 AND DATEDIFF(aravs.date, dl.date) = 3 ))"));
+                $join->on("dl.code", "=", "aravs.code")->whereRaw(DB::raw("dl.date = aravs.date"));
             })
+            ->leftJoin("general_stocks", "general_stocks.date", "=", "dl.date")
             //->leftJoinSub($last20Days, "avg_today", "avg_today.date", "=", "general_stocks.date")
             /*->leftJoinSub($last20Days, "avg_yesterday", function ($join) {
                 $join->on("avg_yesterday.date", "<", "general_stocks.date")->whereRaw(" ( (DAYOFWEEK(`general_stocks`.`date`) = 2 AND DATEDIFF(`general_stocks`.date, avg_yesterday.date) = 3) OR (DAYOFWEEK(`general_stocks`.`date`) BETWEEN 3 AND 6 AND DATEDIFF(`general_stocks`.date, avg_yesterday.date) = 1))");
@@ -212,7 +251,7 @@ class Crawler
             ->leftJoinSub($previousDay1, "previous_1_day", "dl.code", "=", "previous_1_day.code")
             ->leftJoinSub($previousDay2, "previous_2_day", "dl.code", "=", "previous_2_day.code")
             ->leftJoinSub($previousDay3, "previous_3_day", "dl.code", "=", "previous_3_day.code")
-            ->select("dl.date")
+            ->select("dl.dl_date as date")
             ->addSelect("dl.code")
             ->addSelect(DB::raw("IF(previous_3_day.count = 1, (if(previous_2_day.count = 1, (if(previous_1_day.count=1, 4, 3)), (if(previous_1_day.count=1, 2, 1)) )), (if(previous_1_day.count=1, 2, 1)) ) as appearance"))
             ->addSelect(DB::raw("stocks.name as name"))
@@ -235,10 +274,7 @@ class Crawler
             ->addSelect(DB::raw("ROUND((dl.single_agency_vol/dl.vol)*100, 2) as single_agency_rate"))
             ->addSelect("dl.agency_price")
             ->addSelect("dl.large_trade")
-            ->addSelect(DB::raw("IF(DAYOFWEEK(dl.date) = 6, ADDDATE(dl.date, 3), ADDDATE(dl.date, 1) ) as next_date"))
-
-            //->addSelect(DB::raw("(SELECT tlong FROM stock_prices WHERE code = dl.code AND date = next_date ORDER BY tlong DESC LIMIT 1) as current_tlong"))
-            //->addSelect(DB::raw("(SELECT high FROM dl WHERE code = dl.code AND dl.date = ADDDATE(date, 1) LIMIT 1) as previous_high"))
+            ->addSelect("dl.date as next_date")
 
             ->addSelect(DB::raw("dl.open as order_start"));
 
@@ -253,23 +289,23 @@ class Crawler
             $data = $data->addSelect(DB::raw("dl.high as current_high"));
 
         $data = $data
-            ->addSelect(DB::raw("(SELECT today_final FROM general_stocks WHERE date = dl.date LIMIT 1) as yesterday_final"))
-            ->addSelect(DB::raw("(SELECT general_start FROM general_stocks WHERE date = next_date LIMIT 1) as general_start"))
-            ->addSelect(DB::raw("(SELECT price_905 FROM general_stocks WHERE date = next_date LIMIT 1) as general_price_907"))
+            ->addSelect(DB::raw("(SELECT today_final FROM general_stocks WHERE date = dl.dl_date LIMIT 1) as yesterday_final"))
+            ->addSelect(DB::raw("general_stocks.general_start as general_start"))
+            ->addSelect(DB::raw("general_stocks.price_905 as general_price_907"))
             //->addSelect(DB::raw("ROUND(avg_yesterday.sum_today_final/20, 2)+30 as predict_20d_average"))
 
             //->addSelect(DB::raw("( (SELECT predict_20d_average)*20 - last_19_days.sum_today_final - 700) as predict_final"))
             ->addSelect(DB::raw("(SELECT predict_final FROM general_stocks WHERE date = next_date LIMIT 1) as predict_final"))
 
-            ->addSelect(DB::raw("((SELECT general_price_907) - (SELECT general_start)) as general_predict"))
+            ->addSelect(DB::raw("IF(general_stocks.custom_general_predict IS NULL, ((SELECT general_price_907) - (SELECT general_start)), general_stocks.custom_general_predict) as general_predict"))
             ->addSelect(DB::raw("(((SELECT order_start)-dl.final)/dl.final)*100 as BF"))
             ->addSelect(DB::raw("(((SELECT order_start)-dl.agency_price)/dl.agency_price)*100 as BU"))
             ->addSelect(DB::raw("(((SELECT general_start)-(SELECT yesterday_final))/(SELECT yesterday_final))*100 as BN"))
             ->addSelect(DB::raw("(((SELECT price_907)-(SELECT order_start))/(SELECT order_start))*100 as BH"))
             ->addSelect(DB::raw("ROUND((SELECT BF), 2) as order_price_range"))
             ->addSelect(DB::raw("IF((SELECT price_907) IS NULL, '等資料', IF((SELECT price_907) <= (SELECT order_start), '下', '上' ) ) as trend"))
-            ->addSelect(DB::raw("ROUND(IF( (SELECT BF) <= 2 AND (SELECT BU) >= 3.2 AND dl.large_trade >= 1.8, dl.final*1.055, 
-                IF((SELECT BF) <= 2.2 AND (dl.single_agency_vol/dl.vol)*100 >= 10 AND (SELECT BU) >= 4, dl.final*1.065, 
+            ->addSelect(DB::raw("ROUND(IF( (SELECT BF) <= 2 AND (SELECT BU) >= 3.2 AND (SELECT single_agency_rate) >= 2.2 AND dl.large_trade >= 1.8, dl.final*1.055, 
+                IF((SELECT BF) <= 2.2 AND (SELECT single_agency_rate) >= 10 AND (SELECT BU) >= 4, dl.final*1.065, 
                     IF((SELECT order_start) >= dl.final AND (SELECT BF) <1.5 AND dl.agency_price <= dl.final, dl.final*1.03, 
                         IF( (SELECT BU) >= 5 AND (SELECT BF) <= 2, dl.final*1.05, 
                             IF((SELECT general_predict) >= 0 AND dl.final >= 50, dl.agency_price,
@@ -280,7 +316,7 @@ class Crawler
                                 )
                             )
                         )
-                    )
+                    ) 
                 )
             ), 2) as agency_forecast"))
             ->addSelect(DB::raw("ROUND((((SELECT order_start) - (SELECT agency_forecast))/(SELECT agency_forecast))*100, 1) as start_agency_range"))
@@ -383,7 +419,7 @@ class Crawler
         //->addSelect(DB::raw("(SELECT IF(best_ask_price-wail_until >=0, 'YES', 'NO') as pass_ak FROM stock_prices WHERE code = dl.code AND date = ADDDATE(dl.date ,1)) as pass_ak"));
 
         if($filter_date)
-            $data = $data->where("dl.date", $filter_date);
+            $data = $data->where("dl.dl_date", $filter_date);
 
         if($code){
             $data = $data->where("dl.code", $code)->first();
@@ -391,7 +427,7 @@ class Crawler
         else{
             $data = $data->whereRaw("dl.agency IS NOT NULL")
                     ->where("dl.final", ">=", 10)
-                    ->where("dl.final", "<=", 150)
+                    ->where("dl.final", "<=", 170)
                     /*->orderBy("dl.range", "desc")*/
                     ->orderBy("dl.date", "desc")
                     ->orderBy("appearance", "desc")
@@ -461,11 +497,8 @@ class Crawler
         }
     }
 
-    public function monitorStock($stock, $stockPrice, $filter_date){
-        $short_sell = StockOrder::SHORT_SELL;
-        $buy_long = StockOrder::BUY_LONG;
-        $sell = StockOrder::SELL;
-        $buy = StockOrder::BUY;
+    public function monitorStock($stock, $stockPrice){
+
         $stockTime = getdate($stockPrice->tlong / 1000);
 
         //Get previous price
@@ -475,26 +508,41 @@ class Crawler
             ->orderBy("tlong", "desc")
             ->take(3)->get();
 
+        $current_price = $stockPrice->best_ask_price > 0 ? $stockPrice->best_ask_price : $stockPrice->high;
+        $previous_price_0 = 0;
+        $previous_price_1 = 0;
+        $previous_price_2 = 0;
 
-        $stObj = Dl::where("code", $stock->code)->where("date", $stock->date)->first();
-        if (!$stObj->open && $stockPrice->open != 0) {
-            $stObj->open = $stockPrice->open;
-            $stObj->save();
+        if (isset($previous_prices[0])) {
+            $previous_price_0 = $previous_prices[0]->best_ask_price > 0 ? $previous_prices[0]->best_ask_price : $previous_prices[0]->high;
         }
 
-        if(!$stObj->high || $stockPrice->high > $stock->high){
-            $stObj->high = $stockPrice->high;
-            $stObj->save();
+        if (isset($previous_prices[1])) {
+            $previous_price_1 = $previous_prices[1]->best_ask_price > 0 ? $previous_prices[1]->best_ask_price : $previous_prices[1]->high;
         }
 
-        if(!$stObj->low || $stockPrice->low < $stObj->low){
-            $stObj->low = $stockPrice->low;
-            $stObj->save();
+        if (isset($previous_prices[2])) {
+            $previous_price_2 = $previous_prices[1]->best_ask_price > 0 ? $previous_prices[1]->best_ask_price : $previous_prices[1]->high;
         }
 
-        if($stockTime["hours"] == 9 && in_array($stockTime["minutes"], [8, 9, 10 ]) && !$stObj->price_907 && $stockPrice->best_ask_price > 0){
-            $stObj->price_907 = $stockPrice->best_ask_price;
-            $stObj->save();
+        if (!$stock->open && $stockPrice->open != 0) {
+            $stock->open = $stockPrice->open;
+            $stock->save();
+        }
+
+        if(!$stock->high || $stockPrice->high > $stock->high){
+            $stock->high = $stockPrice->high;
+            $stock->save();
+        }
+
+        if(!$stock->low || $stockPrice->low < $stock->low){
+            $stock->low = $stockPrice->low;
+            $stock->save();
+        }
+
+        if($stockTime["hours"] == 9 && in_array($stockTime["minutes"], [8, 9, 10 ]) && !$stock->price_907){
+            $stock->price_907 = $current_price;
+            $stock->save();
         }
 
         //Perform task from 09:00 to 09:07
@@ -505,120 +553,51 @@ class Crawler
              */
 
 
-            if ($stockTime["hours"] == 9 && $stockTime["minutes"] == 7 && $stockPrice->best_ask_price > 0) {
-                $stObj->price_907 = $stockPrice->best_ask_price;
-                $stObj->save();
+            if ($stockTime["hours"] == 9 && $stockTime["minutes"] == 7) {
+                $stock->price_907 = $current_price;
+                $stock->save();
             }
 
+            $data = $this->getStockData($stock->dl_date, $stockPrice->code, $current_price);
 
-            if ($stockPrice->best_ask_price > 0) {
-                $data = $this->getStockData($stock->date, $stockPrice->code, $stockPrice->best_ask_price);
+            #Log::info("AJ stock data". json_encode($data));
 
-                #Log::info("AJ stock data". json_encode($data));
+            if (!is_numeric($data->place_order)) {
+                if ($data->place_order == '馬上做多單') {
+                    $stockOrder = StockOrder::where("code", $stock->code)
+                        ->where("order_type", StockOrder::DL1)
+                        ->where("date", $stockPrice->date)
+                        ->where("deal_type", StockOrder::BUY_LONG)
+                        ->where("type", StockOrder::BUY)
+                        ->first();
+                    if (!$stockOrder) {
+                        //Buy long now. don’t need to wait 9:07 data
 
-                if (!is_numeric($data->place_order)) {
-                    if ($data->place_order == '馬上做多單') {
-                        $stockOrder = StockOrder::where("code", $stock->code)
-                            ->where("date", $stockPrice->date)
-                            ->where("deal_type", StockOrder::BUY_LONG)
-                            ->where("type", StockOrder::BUY)
-                            ->first();
-                        if (!$stockOrder) {
-                            //Buy long now. don’t need to wait 9:07 data
-                            /*$fee = round($stockPrice->best_ask_price * 1.425);
-                            $tax = round($stockPrice->best_ask_price * 1.5);
-                            $stockOrder = new StockOrder([
-                                "type" => StockOrder::BUY,
-                                "deal_type" => StockOrder::BUY_LONG,
-                                "date" => $stockPrice->date,
-                                "tlong" => $stockPrice->tlong,
-                                "code" => $stockPrice->code,
-                                "qty" => 1,
-                                "price" => $stockPrice->best_ask_price,
-                                "fee" => $fee,
-                                "tax" => $tax,
-                            ]);*/
-
-                            /*Log::info(json_encode([
-                                "Buy Long",
-                                $stockPrice->code,
-                                $stockPrice->best_ask_price,
-                                "Buy",
-                            ]));*/
-
-                        } else {
-                            #$stockOrder->qty++;
-                        }
-                        $stockOrder->save();
+                    } else {
+                        #$stockOrder->qty++;
                     }
-                    if ($data->place_order == '等拉高') {
-                        //Wait a bit and Short selling when meet condition
-                        if (isset($previous_prices[2])) {
-
-                            //if price still going up even over the AK suggested price, don’t sell yet. Pls wait until current price drop to  < ‘h’/1.05
-                            if (($stockPrice->high >= $data->wail_until && $stockPrice->best_ask_price < $stockPrice->high / 1.05)
-
-                                //if it’s ‘h’ > agency forecast, and it’s dropping down now. need to sell it now, don’t need to wait until 9:07
-                                || ($stockPrice->high >= $data->agency_forecast
-                                    && $stockPrice->best_ask_price < $previous_prices[0]->best_ask_price
-                                    && $previous_prices[0]->best_ask_price < $previous_prices[1]->best_ask_price
-                                    && $previous_prices[1]->best_ask_price < $previous_prices[2]->best_ask_price)) {
-
-                                //Short selling now
-                                $fee = round($stockPrice->best_ask_price * 1.425);
-                                $tax = round($stockPrice->best_ask_price * 1.5);
-
-                                $stockOrder = StockOrder::where("code", $stock->code)
-                                    ->where("date", $stockPrice->date)
-                                    ->where("deal_type", StockOrder::SHORT_SELL)
-                                    ->where("type", StockOrder::SELL)
-                                    ->first();
-
-                                if (!$stockOrder) {
-                                    $stockOrder = new StockOrder([
-                                        "type" => StockOrder::SELL,
-                                        "deal_type" => StockOrder::SHORT_SELL,
-                                        "date" => $stockPrice->date,
-                                        "tlong" => $stockPrice->tlong,
-                                        "code" => $data->code,
-                                        "qty" => 1,
-                                        "price" => $stockPrice->best_ask_price,
-                                        "fee" => $fee,
-                                        "tax" => $tax,
-                                    ]);
-                                } else {
-                                    # $stockOrder->qty++;
-                                }
-
-                                $stockOrder->save();
-
-                                /*Log::info(json_encode([
-                                    "Short selling",
-                                    $stockPrice->code,
-                                    $stockPrice->best_ask_price,
-                                    $stockPrice->qty,
-                                    "Sell",
-                                ]));*/
-
-
-                            }
-
-
-                        }
-
-                    }
+                    $stockOrder->save();
                 }
+                if ($data->place_order == '等拉高') {
+                    //Wait a bit and Short selling when meet condition
+                    if (isset($previous_prices[2])) {
 
-                if ($stockTime["hours"] == 9 && $stockTime["minutes"] == 7) {
+                        //if price still going up even over the AK suggested price, don’t sell yet. Pls wait until current price drop to  < ‘h’/1.05
+                        if (($stockPrice->high >= $data->wail_until && $current_price < $stockPrice->high / 1.05)
 
-                    if (is_numeric($data->place_order) && $data->place_order > 0) {
-                        //Short selling now
-                        $stockOrder = StockOrder::where("code", $stock->code)->where("date", $stockPrice->date)->where("type", StockOrder::SELL)->first();
-                        if (!$stockOrder) {
-                            $fee = round($data->place_order * 1.425);
-                            $tax = round($data->place_order * 1.5);
+                            //OR
+                            //if it’s ‘h’ > agency forecast, and it’s dropping down now. need to sell it now, don’t need to wait until 9:07
+                            || ($stockPrice->high >= $data->agency_forecast && $current_price < $stockPrice->high / 1.05
+                                && $current_price < $previous_price_0
+                                && $previous_price_0 < $previous_price_1
+                                && $previous_price_1 < $previous_price_2)) {
+
+                            //Short selling now
+                            $fee = round($current_price * 1.425);
+                            $tax = round($current_price * 1.5);
 
                             $stockOrder = StockOrder::where("code", $stock->code)
+                                ->where("order_type", StockOrder::DL1)
                                 ->where("date", $stockPrice->date)
                                 ->where("deal_type", StockOrder::SHORT_SELL)
                                 ->where("type", StockOrder::SELL)
@@ -627,30 +606,62 @@ class Crawler
                             if (!$stockOrder) {
                                 $stockOrder = new StockOrder([
                                     "type" => StockOrder::SELL,
+                                    "order_type" => StockOrder::DL1,
                                     "deal_type" => StockOrder::SHORT_SELL,
                                     "date" => $stockPrice->date,
                                     "tlong" => $stockPrice->tlong,
-                                    "code" => $stockPrice->code,
+                                    "code" => $data->code,
                                     "qty" => 1,
-                                    "price" => $data->place_order,
+                                    "price" => $current_price,
                                     "fee" => $fee,
                                     "tax" => $tax,
                                 ]);
-                            } else {
-                                # $stockOrder->qty++;
                             }
+
                             $stockOrder->save();
 
-                            /*Log::info(json_encode([
-                                "Short selling now",
-                                $stockPrice->code,
-                                $data->place_order,
-                                $stockOrder->qty,
-                                "Sell",
-                            ]));*/
-
-
                         }
+
+
+                    }
+
+                }
+            }
+
+            if ($stockTime["hours"] == 9 && $stockTime["minutes"] == 7) {
+
+                if (is_numeric($data->place_order) && $data->place_order > 0) {
+                    //Short selling now
+                    $stockOrder = StockOrder::where("code", $stock->code)->where("date", $stockPrice->date)->where("type", StockOrder::SELL)->first();
+                    if (!$stockOrder) {
+                        $fee = round($data->place_order * 1.425);
+                        $tax = round($data->place_order * 1.5);
+
+                        $stockOrder = StockOrder::where("code", $stock->code)
+                            ->where("order_type", StockOrder::DL1)
+                            ->where("date", $stockPrice->date)
+                            ->where("deal_type", StockOrder::SHORT_SELL)
+                            ->where("type", StockOrder::SELL)
+                            ->first();
+
+                        if (!$stockOrder) {
+                            $stockOrder = new StockOrder([
+                                "type" => StockOrder::SELL,
+                                "order_type" => StockOrder::DL1,
+                                "deal_type" => StockOrder::SHORT_SELL,
+                                "date" => $stockPrice->date,
+                                "tlong" => $stockPrice->tlong,
+                                "code" => $stockPrice->code,
+                                "qty" => 1,
+                                "price" => $data->place_order,
+                                "fee" => $fee,
+                                "tax" => $tax,
+                            ]);
+                        } else {
+                            # $stockOrder->qty++;
+                        }
+                        $stockOrder->save();
+
 
                     }
 
@@ -663,25 +674,34 @@ class Crawler
          * ---------------------------------------------------------------------------------------------------------------
          */
 
+        $short_sell = StockOrder::SHORT_SELL;
+        $buy_long = StockOrder::BUY_LONG;
+        $sell = StockOrder::SELL;
+        $buy = StockOrder::BUY;
         //Close deal??
 
         $previous_order = DB::table("stock_orders")
             ->addSelect("code")
+            ->addSelect("id")
             ->addSelect("price")
             ->addSelect("type")
             ->addSelect("deal_type")
+            ->addSelect("order_type")
             ->where("code", $stock->code)
-            ->whereRaw("(stock_orders.deal_type = '{$short_sell}' AND stock_orders.type = '{$sell}') OR (stock_orders.deal_type = '{$buy_long}' AND stock_orders.type = '{$buy}')")
-            ->where("date", $filter_date)->first();
+            ->where("date", $stockPrice->date)
+            ->whereRaw("( (stock_orders.deal_type = '{$short_sell}' AND stock_orders.type = '{$sell}') OR (stock_orders.deal_type = '{$buy_long}' AND stock_orders.type = '{$buy}') )")
+            ->first();
 
-        if ($previous_order && $previous_order->price > 0 && $stockPrice->best_ask_price > 0) {
+        if ($previous_order && $previous_order->price > 0) {
+
+            #Log::debug("TB test previous order {$previous_order->id} {$previous_order->code}");
 
             if ($previous_order->type == StockOrder::BUY) {
                 $buy_price = $previous_order->price;
-                $sell_price = $stockPrice->best_ask_price;
+                $sell_price = $current_price;
             } else {
                 $sell_price = $previous_order->price;
-                $buy_price = $stockPrice->best_ask_price;
+                $buy_price = $current_price;
             }
 
             $current_profit = ($sell_price - $buy_price)*1000;
@@ -692,53 +712,20 @@ class Crawler
 
                 if ($previous_prices && isset($previous_prices[2])) {
 
-                    $check = (($previous_prices[1]->best_ask_price - $stockPrice->best_ask_price) / $stockPrice->best_ask_price) * 100;
-
-                    /*Log::info(json_encode([
-                        "code" => $stockPrice->code,
-                        "order_price" => $previous_order->price,
-                        "current_price" => $stockPrice->best_ask_price,
-                        "low" => $stockPrice->low,
-                        "high" => $stockPrice->high,
-                        "profit" => round($current_profit),
-                        "profit %" => round($current_profit_percent, 2),
-                        "checked" => round($check, 2)
-                    ]));*/
+                    $check = (($previous_price_1 - $current_price) / $current_price) * 100;
 
                     //Close deal
                     if ($previous_order->deal_type == StockOrder::SHORT_SELL) {
                         //If short selling
 
                         //If price was dropping but seems going up or stop dropping
-                        if ($stockPrice->best_ask_price == $stockPrice->low && $check > 0.4) {
+                        if ($current_price == $stockPrice->low && $check > 0.4) {
 
                             //Buy Back
-                            $this->closeDeal(StockOrder::SHORT_SELL, $stockPrice);
+                            $this->buyBack($previous_order, $stockPrice);
                         }
 
                     }
-                    /*if($previous_order->deal_type == StockOrder::BUY_LONG){
-                        //If buy long
-
-                        //If price was rising but seems going down or stop rising
-                        if($stockPrice->best_ask_price <= $previous_prices[0]->best_ask_price
-                            && $previous_prices[0]->best_ask_price <= $previous_prices[1]->best_ask_price
-                            && $previous_prices[1]->best_ask_price > $previous_prices[2]->best_ask_price) {
-
-                            $stockOrder = new StockOrder([
-                                "type" => StockOrder::SELL,
-                                "deal_type" => $previous_order->deal_type,
-                                "date" => $stockPrice->date,
-                                "tlong" => $stockPrice->tlong,
-                                "code" => $stock->code,
-                                "qty" => 1,
-                                "price" => $stockPrice->best_ask_price,
-                                "fee" => $fee,
-                                "tax" => $tax,
-                            ]);
-                            $stockOrder->save();
-                        }
-                    }*/
 
 
                 }
@@ -757,32 +744,33 @@ class Crawler
 
             if($pvh){
                 $previousH = $pvh->high;
+                //$previousH*1.005
                 if($stockPrice->high >= $previousH*1.005){
-
+                    Log::debug("Locked in high?? {$stockPrice->code} {$stockPrice->high} - {$previousH} {$stock->borrow_ticket}");
                     if ($previous_order->deal_type == StockOrder::SHORT_SELL) {
                         if(!$stock->borrow_ticket){
-                            $this->closeDeal(StockOrder::SHORT_SELL, $stockPrice);
+                            $this->buyBack($previous_order, $stockPrice);
                         }
                     }
                 }
             }
 
             //Close deal when  current price =previous_order_price/1.01
-            if($stockPrice->best_ask_price == $previous_order->price/1.015){
+            if($current_price == $previous_order->price/1.015){
                 if ($previous_order->deal_type == StockOrder::SHORT_SELL) {
-                    $this->closeDeal(StockOrder::SHORT_SELL, $stockPrice);
+                    $this->buyBack($previous_order, $stockPrice);
                 }
             }
 
 
-            $fee = $stockPrice->best_ask_price * 1.425;
-            $tax = $stockPrice->best_ask_price * 1.5;
+            $fee = $current_price * 1.425;
+            $tax = $current_price * 1.5;
 
             //Close deal at the end of trading day and stock is not locked in high
-            // && $stockPrice->best_ask_price < $previous_order->price - $tax - $fee
+            // && $current_price < $previous_order->price - $tax - $fee
             if($stockTime["hours"] == 13 && in_array($stockTime["minutes"], [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]) ){
                 if ($previous_order->deal_type == StockOrder::SHORT_SELL) {
-                    $this->closeDeal(StockOrder::SHORT_SELL, $stockPrice);
+                    $this->buyBack($previous_order, $stockPrice);
                 }
             }
         }
@@ -792,10 +780,14 @@ class Crawler
          */
     }
 
-    public function closeDeal($dealType, $stockPrice, $price=null){
+
+
+
+    public function buyBack($previous_order, $stockPrice, $price=null){
         $stockOrder = StockOrder::where("code", $stockPrice->code)
             ->where("date", $stockPrice->date)
-            ->where("deal_type", $dealType)
+            ->where("deal_type", $previous_order->deal_type)
+            ->where("order_type", $previous_order->order_type)
             ->where("type", StockOrder::BUY)
             ->first();
 
@@ -806,7 +798,8 @@ class Crawler
             //Buy Back
             $stockOrder = new StockOrder([
                 "type" => StockOrder::BUY,
-                "deal_type" => $dealType,
+                "deal_type" => $previous_order->deal_type,
+                "order_type" => $previous_order->order_type,
                 "date" => $stockPrice->date,
                 "tlong" => $stockPrice->tlong,
                 "code" => $stockPrice->code,
@@ -824,13 +817,15 @@ class Crawler
         $stocks = DB::table("stocks")
             ->whereRaw(" LENGTH(code) = 4");
 
+        $nop = 80;
+
         $list = [];
 
-        for ($i = 0; $i < $stocks->count(); $i += 161) {
+        for ($i = 0; $i < $stocks->count(); $i += $nop) {
 
             $sub = DB::table("stocks")
                 ->whereRaw(" LENGTH(code) = 4")
-                ->limit(161)->offset($i);
+                ->limit($nop)->offset($i);
 
             $list[] = DB::table(DB::raw("({$sub->toSql()}) as sub"))
                 ->mergeBindings($sub)
@@ -840,6 +835,130 @@ class Crawler
 
         return $list;
     }
+
+    public function getUrlFromStocks($stocks){
+        $stocks_str = implode("|", array_reduce($stocks, function ($t, $e){
+            $t[] = "{$e['type']}_{$e['code']}.tw";
+            return $t;
+        }, []));
+
+        //?ex_ch=tse_3218.tw
+        return 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?'.http_build_query([
+                "ex_ch" => $stocks_str,
+                "t" => time()
+            ]);
+    }
+
+    public function getDL1Stocks($filter_date){
+        if(!$filter_date) $filter_date = date("Y-m-d");
+        return Dl::join("stocks", "stocks.code", "=", "dl.code")
+            ->select("dl.date")
+            ->addSelect("dl.dl_date")
+            ->addSelect("dl.id")
+            ->addSelect("dl.code")
+            ->addSelect("dl.open")
+            ->addSelect("dl.low")
+            ->addSelect("dl.high")
+            ->addSelect("dl.price_907")
+            ->addSelect("dl.borrow_ticket")
+            ->addSelect("stocks.type")
+            ->where("dl.final", ">=", 10)
+            ->where("dl.final", "<=", 170)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->where("dl.date", $filter_date)->get();
+    }
+
+    public function getDL2Stocks($filter_date, $dl1 = []){
+        if(!$filter_date) $filter_date = date("Y-m-d");
+        return Dl2::where("date", $this->previousDay($filter_date))->whereNotIn("code", $dl1)->get();
+    }
+
+    public function monitorDl2Stock($stock, $stockPrice, $filter_date){
+        $stockTime = getdate($stockPrice->tlong / 1000);
+
+        //Get previous price
+        $previous_prices = StockPrice::where("code", $stock->code)
+            ->where("tlong", "<", $stockPrice->tlong)
+            ->where("date", $stockPrice->date)
+            ->orderBy("tlong", "desc")
+            ->take(3)->get();
+
+        $previous_day = Dl2::where("code", $stock->code)->where("date", $this->previousDay($filter_date))->first();
+
+        if($previous_day
+            //When current price < yesterday final[Y]
+            && $stockPrice->best_ask_price < $previous_day->final
+            //Current H > = yesterday final [Y]
+            && $stockPrice->high >= $previous_day->final
+            //V>50
+            && $stockPrice->accumulate_trade_volume > 50
+            //price >15 and <170
+            && $stockPrice->best_ask_price > 15 && $stockPrice->best_ask_price < 170){
+            $stock_order = StockOrder::where("code", $stock->code)
+                ->where("order_type", StockOrder::DL2)
+                ->where("date", $filter_date)
+                ->where("type", StockOrder::SELL)
+                ->where("deal_type", StockOrder::SHORT_SELL)
+                ->first();
+
+            if(!$stock_order){
+                $fee = round($stockPrice->best_ask_price * 1.425);
+                $tax = round($stockPrice->best_ask_price * 1.5);
+
+                $stock_order = new StockOrder([
+                    "code" => $stock->code,
+                    "order_type" => StockOrder::DL2,
+                    "date" => $filter_date,
+                    "tlong" => $stockPrice->tlong,
+                    "type" => StockOrder::SELL,
+                    "deal_type" => StockOrder::SHORT_SELL,
+                    "qty" => 1,
+                    "price" => $stockPrice->best_ask_price,
+                    "fee" => $fee,
+                    "tax" => $tax,
+                ]);
+                $stock_order->save();
+            }
+        }
+
+    }
+
+
+    public function sell($stock){
+
+        return;
+
+        $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
+        Log::debug($r);
+
+        $hasTicket = $stock->borrow_ticket ? "True" : "False";
+        $url = "http://dev.ml-codesign.com:8083/api/Vendor/sell/{$stock->code}?hasTicket={$hasTicket}";
+        $r = file_get_contents($url);
+        Log::debug($url);
+        Log::debug($r);
+
+        $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/logout");
+        Log::debug($r);
+    }
+
+    public function buy($stock){
+
+        return;
+
+        $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
+        Log::debug($r);
+
+        $hasTicket = $stock->borrow_ticket ? "True" : "False";
+        $url = "http://dev.ml-codesign.com:8083/api/Vendor/buy/{$stock->code}?hasTicket={$hasTicket}";
+        $r = file_get_contents($url);
+        Log::debug($url);
+        Log::debug($r);
+
+        $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/logout");
+        Log::debug($r);
+    }
+
+
 }
 
 

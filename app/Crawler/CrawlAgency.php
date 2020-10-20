@@ -48,7 +48,7 @@ class CrawlAgency extends Crawler
 
         if(count($this->data) == 0){
             //Its really empty
-            Log::info($crawler->outerHTML());
+            # Log::info($crawler->outerHTML());
             return ["agency" => "", "total_agency_vol" => 0, "single_agency_vol" => 0, "agency_price" => 0];
         }
 

@@ -78,11 +78,12 @@ class Controller extends BaseController
     }
 
     public function previousDay($day){
+
         $date = $this->getDate($day);
         $previous_day = strtotime("$day -1 day");
         $previous_day_date = getdate($previous_day);
 
-        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$date['year']}")->get()->toArray();
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  '{$date['year']}'")->get()->toArray();
         $holiday = array_reduce($h, function ($t, $e){
             $t[] = $e['date'];
             return $t;
@@ -94,12 +95,19 @@ class Controller extends BaseController
     }
 
     public function nextDay($day){
-        $previous_day = strtotime("$day +1 day");
-        $previous_day_date = getdate($previous_day);
+        $date = $this->getDate($day);
+        $next_day = strtotime("$day +1 day");
+        $next_day_date = getdate($next_day);
 
-        if($previous_day_date["wday"] == 0 || $previous_day_date["wday"] == 6)
-            return $this->nextDay(date('Y-m-d', $previous_day));
-        else return date('Y-m-d', $previous_day);
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  '{$date['year']}'")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+
+        if($next_day_date["wday"] == 0 || $next_day_date["wday"] == 6 || in_array(date('Y-m-d', $next_day), $holiday))
+            return $this->nextDay(date('Y-m-d', $next_day));
+        else return date('Y-m-d', $next_day);
     }
 
     public function previousDayJoin($day, $filter_date){

@@ -4,8 +4,12 @@
 namespace App\Crawler;
 
 use App\Dl;
+use App\Dl2;
+use App\Holiday;
+use App\StockOrder;
 use App\StockPrice;
 use DateTime;
+use Illuminate\Support\Facades\Log;
 
 
 class RealTime extends Crawler
@@ -16,8 +20,15 @@ class RealTime extends Crawler
 
         $now = new DateTime();
 
-        if ($now->format("N") > 6){
-            return $this->monitor($this->previousDay($filter_date));
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$now->format('Y')}")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+
+        //If weekend or holiday
+        if ($now->format("N") >= 6 || in_array($now->format("Y-m-d"), $holiday)){
+            return false;
         }
 
         $start = new DateTime();
@@ -31,24 +42,19 @@ class RealTime extends Crawler
         $stop->setTime(13, 35, 0);
 
 
-        $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
-            ->select("dl.date")
-            ->addSelect("dl.code")
-            ->addSelect("dl.open")
-            ->addSelect("dl.low")
-            ->addSelect("dl.high")
-            ->addSelect("dl.price_907")
-            ->addSelect("dl.borrow_ticket")
-            ->addSelect("stocks.type")
-            ->where("dl.final", ">=", 10)
-            ->where("dl.final", "<=", 170)
-            ->whereRaw("dl.agency IS NOT NULL")
-            ->where("dl.date", $this->previousDay($filter_date))->get();
+        //Play DL1
+        $stocks = $this->getDL1Stocks($filter_date);
 
         if(!$stocks){
-            $this->monitor($this->previousDay($filter_date));
+            $this->getDL1Stocks($this->previousDay($filter_date));
         }
 
+        /*$dlStocks = [];
+        foreach($stocks as $stock){
+            $dlStocks[] = $stock->code;
+        }
+
+        $stocks_dl2 = $this->getDL2Stocks($filter_date, $dlStocks);*/
 
         while ($now >= $start && $now <= $stop) {
             //Working time
@@ -58,44 +64,48 @@ class RealTime extends Crawler
              */
             $this->monitorGeneralStock();
 
+            //Get realtime price of all stocks
+            $url = $this->getUrlFromStocks($stocks->toArray());
+            $stockInfo = new CrawlStockInfoData($url);
+
+            #Log::debug(json_encode($stockInfo->data));
+
             /**
-             * Monitor  stocks price
+             * Monitor DL1 stocks price
              */
             if ($stocks) {
                 //Get realtime stock info of dl stocks
-                $stockInfo = new CrawlStockInfoData($stocks->toArray());
+                #$stockInfo = new CrawlStockInfoData($stocks->toArray());
 
                 foreach ($stocks as $stock) {
-
 
                     //Check if current stock has data
                     if (isset($stockInfo->data[$stock->code])) {
 
-
-                        //If stock price is not exists. create
-                        $stockPrice = StockPrice::where("code", $stock->code)
-                            ->where("date", $stockInfo->data[$stock->code]['date'])
-                            ->where("tlong", $stockInfo->data[$stock->code]["tlong"])
-                            ->first();
-
-                        if (!$stockPrice) {
-                            $stockPrice = new StockPrice($stockInfo->data[$stock->code]);
-                            $stockPrice->save();
-                        }
-
-
-                        $this->monitorStock($stock, $stockPrice, $filter_date);
+                        $this->monitorStock($stock, $stockInfo->data[$stock->code]);
 
                     }
-
                 }
 
             }
 
+            /**
+             * Monitor Dl2 stocks price
+             */
 
-            sleep(5);
+            /*if($stocks_dl2){
+                foreach ($stocks_dl2 as $dl2){
+                    if (isset($stockPrices[$dl2->code])) {
+                        $this->monitorDl2Stock($dl2, $stockPrices[$dl2->code], $filter_date);
+                    }
+                }
+            }*/
+
+            sleep(1);
             $now = new DateTime();
         }
+
+        return true;
     }
 
 }

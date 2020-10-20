@@ -4,9 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Agent;
 use App\Arav;
-use App\Crawler\Crawler;
-use App\Crawler\CrawlGeneralStock;
-use App\Crawler\CrawlGeneralStockFinal;
 use App\Crawler\CrawlHoliday;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
@@ -15,14 +12,12 @@ use App\Crawler\CrawlOrder;
 use App\Crawler\Tpex;
 use App\Crawler\CrawlLargeTradeRateSell;
 use App\Crawler\Twse;
-use App\Crawler\CrawlGeneralStockToday;
 use App\Dl;
+use App\Dl2;
 use App\FailedCrawl;
-use App\GeneralStock;
 use App\Holiday;
 use App\Order;
 use App\Stock;
-use DateTime;
 use DOMDocument;
 use Goutte\Client;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +37,7 @@ class StockController extends Controller
         $this->client = new Client();
         //nancyhsu0511@gmail.com
         $data = ["email" => "kis77628@gmail.com", "password" => "ASDFvcx2z!"];
+        //$data = ["email" => "nancyhsu0511@gmail.com", "password" => "ASDFvcx2z!"];
 
         $crawler = $this->client->request("GET", "https://histock.tw/login");
         $form = $crawler->selectButton('登入')->form();
@@ -80,7 +76,7 @@ class StockController extends Controller
 
         $two_data = $TWO->get($filter_date);
 
-        //Dl::where("date", $filter_date)->delete();
+        //Dl::where("dl_date", $filter_date)->delete();
 
         $excludeFilter = new DLExcludeFilter($filter_date);
         $includeFilter = new DLIncludeFilter($filter_date);
@@ -99,7 +95,8 @@ class StockController extends Controller
             ]);
 
             $d = [
-                'date'  => $filter_date,
+                'date'  => $this->nextDay($filter_date),
+                'dl_date'  => $filter_date,
                 'code' => $data[0],
                 'final' => $this->format_number($data[2]),
                 'range' => $this->format_number($data[3]),
@@ -115,7 +112,7 @@ class StockController extends Controller
 
             $d["vol"] = round($d["vol"]/1000, 0);
 
-            $appear_yesterday = Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
+            $appear_yesterday = Dl::where("code", $d["code"])->where("dl_date", $this->previousDay($filter_date))->first();
 
             if($d["final"] >= 10
                 && $d['range'] >= $this->range_filter
@@ -128,7 +125,7 @@ class StockController extends Controller
                 $result_data[$d["code"]] = $d;
 
 
-                $dl = Dl::where("code", $d["code"])->where("date", $filter_date)->first();
+                $dl = Dl::where("code", $d["code"])->where("dl_date", $filter_date)->first();
                 if($dl){
 
                     $dl->update($d);
@@ -139,6 +136,34 @@ class StockController extends Controller
 
             }else{
                 $discarded_stocks[] = $d;
+            }
+
+            /**
+             * Save dl2 stocks
+             */
+            if(strlen($d["code"]) <= 4
+                && $d['final'] > 15
+                && $d['final'] < 170
+                && in_array($d["code"], $includeFilter->stockList)
+                && !in_array($d["code"], $excludeFilter->stockList)){
+
+                $dd = [
+                    'date'  => $filter_date,
+                    'code' => $data[0],
+                    'final' => $this->format_number($data[2]),
+                ];
+
+                $dl2 = Dl2::where("code", $dd["code"])->where("date", $filter_date)->first();
+                $previous_day = Dl2::where("code", $dd["code"])->where("date", $this->previousDay($filter_date))->first();
+                $previous_2day = Dl2::where("code", $dd["code"])->where("date", $this->previousDay($this->previousDay($filter_date)))->first();
+                if(($previous_day && $previous_2day && $previous_day->final >= 0 && $previous_2day->final>=0)  || !$previous_day || !$previous_2day ){
+                    if ($dl2) {
+                        $dl2->update($dd);
+                    } else {
+                        Dl2::create($dd);
+                    }
+                }
+
             }
 
         }
@@ -159,7 +184,8 @@ class StockController extends Controller
             if(strlen($data[0]) > 4) continue;
 
             $d = [
-                'date'  => $filter_date,
+                'date'  => $this->nextDay($filter_date),
+                'dl_date'  => $filter_date,
                 'code' => $data[0],
                 'final' => $this->format_number($data[8]),
                 'range' => $this->format_number($data[9]),
@@ -175,7 +201,7 @@ class StockController extends Controller
 
             $d["range"] = $v8 == $v10 ? 0 : round((($v8 - ($v8-$v10))/($v8-$v10))*100, 2);
 
-            $appear_yesterday = Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
+            $appear_yesterday = Dl::where("code", $d["code"])->where("dl_date", $this->previousDay($filter_date))->first();
 
             if($d["final"] >= 10
                 && $d['range'] >= $this->range_filter
@@ -187,7 +213,7 @@ class StockController extends Controller
 
                 $result_data[$d["code"]] = $d;
 
-                $dl = Dl::where("code", $d["code"])->where("date", $filter_date)->first();
+                $dl = Dl::where("code", $d["code"])->where("dl_date", $filter_date)->first();
                 if ($dl) {
                     $dl->update($d);
                 } else {
@@ -196,6 +222,34 @@ class StockController extends Controller
 
             }else{
                 $discarded_stocks[] = $d;
+            }
+
+            /**
+             * Save dl2 stocks
+             */
+            if(strlen($d["code"]) <= 4
+            && $d['final'] > 15
+            && $d['final'] < 170
+            && in_array($d["code"], $includeFilter->stockList)
+            && !in_array($d["code"], $excludeFilter->stockList)){
+
+                $dd = [
+                    'date'  => $filter_date,
+                    'code' => $data[0],
+                    'final' => $this->format_number($data[8])
+                ];
+
+                $dl2 = Dl2::where("code", $dd["code"])->where("date", $filter_date)->first();
+                $previous_day = Dl2::where("code", $dd["code"])->where("date", $this->previousDay($filter_date))->first();
+                $previous_2day = Dl2::where("code", $dd["code"])->where("date", $this->previousDay($this->previousDay($filter_date)))->first();
+                if(($previous_day && $previous_2day && $previous_day->final >= 0 && $previous_2day->final >=0)  || !$previous_day || !$previous_2day ){
+                    if ($dl2) {
+                        $dl2->update($dd);
+                    } else {
+                        Dl2::create($dd);
+                    }
+                }
+
             }
 
         }
@@ -213,7 +267,7 @@ class StockController extends Controller
             return $t;
         }, []);
 
-        $dls = Dl::where("date", $filter_date)->get();
+        $dls = Dl::where("dl_date", $filter_date)->get();
 
         $result = [];
 
@@ -232,7 +286,7 @@ class StockController extends Controller
 
         $dls = Dl::join("stocks", "stocks.code", "=", "dl.code")
             ->select(DB::raw("dl.*, stocks.type"))
-            ->where("date", $filter_date)->get();
+            ->where("dl_date", $filter_date)->get();
 
         $result_data = [];
 
@@ -254,7 +308,7 @@ class StockController extends Controller
     }
 
     private function getPreviousDayDL($d, $filter_date){
-        return Dl::where("code", $d["code"])->where("date", $this->previousDay($filter_date))->first();
+        return Dl::where("code", $d["code"])->where("dl_date", $this->previousDay($filter_date))->first();
     }
 
 
@@ -341,7 +395,7 @@ class StockController extends Controller
         $today_dl = DB::table("dl")
             ->join("stocks", "stocks.code", "=", "dl.code")
             ->addSelect(DB::raw("dl.*, stocks.type as type, stocks.name as name"))
-            ->where("date", $filter_date)
+            ->where("dl_date", $filter_date)
             ->get();
 
 
@@ -474,14 +528,14 @@ class StockController extends Controller
 
         foreach ($dls as $dl){
 
-            $stockAgents = $this->getStockAgent($dl->code, $dl->date, $agents);
+            $stockAgents = $this->getStockAgent($dl->code, $dl->dl_date, $agents);
             if($stockAgents == false){
                 //Make it out of re crawl list
                 $dl->update(['agency' => NULL]);
             }
             else{
-                Log::info("Re Crawl Agency for {$dl->code} {$dl->date}");
-                Log::info($stockAgents);
+                Log::info("Re Crawl Agency for {$dl->code} {$dl->dl_date}");
+                # Log::info($stockAgents);
                 $dl->update($stockAgents);
             }
 
@@ -491,149 +545,7 @@ class StockController extends Controller
         return [];
     }
 
-    public function crawlGeneralStock($filter_date = null, $key = null){
 
-        if(!$filter_date){
-            $filter_date = $this->previousDay(date("Y-m-d"));
-        }
-
-        switch ($key){
-            case "general_start":
-                $time = "09:00:00";
-                break;
-            case "price_905":
-                $time = "09:05:00";
-                break;
-            case "today_final":
-                $time = "13:35:00";
-                break;
-            default:
-                $time = null;
-                break;
-        }
-
-        $crawl = new CrawlGeneralStock($filter_date, $time);
-
-        $generalStock = GeneralStock::where("date", $filter_date)->first();
-        if(!$generalStock){
-            $generalStock = new GeneralStock([
-                "date" => $filter_date
-            ]);
-        }
-
-        if($key)
-            $generalStock->{$key} = $this->format_number($crawl->generalStockData[1]);
-        else{
-            $generalStock->general_start = $this->format_number($crawl->generalStockData["09:00:00"][1]);
-            $generalStock->price_905 = $this->format_number($crawl->generalStockData["09:05:00"][1]);
-            $generalStock->today_final = $this->format_number($crawl->generalStockData["13:30:00"][1]);
-        }
-
-        $generalStock->save();
-
-        return redirect(route("general", ["date" => $filter_date]));
-    }
-
-    public function crawlGeneralStockFinal($date){
-        $crawlGeneralStockFinal = new CrawlGeneralStockFinal($date);
-
-        $generalStock = GeneralStock::where("date", $date)->first();
-
-        if(!$generalStock){
-            $generalStock = new GeneralStock([
-                "date" => $date
-            ]);
-        }
-
-        $generalStock->today_final = $crawlGeneralStockFinal->value;
-        $generalStock->save();
-
-        Log::info("Crawl General Stock Final Today {$date}");
-        return redirect(route("general", ["date" => $date]));
-
-    }
-
-    public function crawlGeneralStockToday($key){
-        $today = new DateTime();
-        $filter_date = date("Y-m-d");
-
-        switch($key){
-
-            case "price_905":
-                $hour = 9;
-                $minute = 5;
-                break;
-            case "today_final":
-                $hour = 13;
-                $minute = 31;
-                break;
-            default:
-                $hour = 9;
-                $minute = 1;
-                break;
-        }
-
-        $today->setTime($hour, $minute, 0, 0);
-        $crawl = new CrawlGeneralStockToday($today->getTimestamp()*1000);
-
-        $generalStock = GeneralStock::where("date", $filter_date)->first();
-
-        if(!$generalStock){
-            $generalStock = new GeneralStock([
-                "date" => date("Y-m-d")
-            ]);
-        }
-
-        $generalStock->{$key} = $this->format_number($crawl->value);
-
-        $generalStock->save();
-
-        return redirect(route("general", ["date" => $filter_date]));
-    }
-
-
-    public function crawlOrder($key="start", $filter_date = null){
-
-        if (!$filter_date) {
-            $filter_date = $this->previousDay(date("Y-m-d"));
-        }
-
-        $d = date_create($filter_date);
-        if($d->format("N") >= 6){
-            $filter_date = $this->previousDay($filter_date);
-        }
-
-        Log::info("Crawling order data for {$key} {$filter_date}");
-
-
-        $result = $this->getOrder($filter_date, $key);
-
-        if(count($result) == 0){
-            FailedCrawl::create([
-                "action" => "crawl_order",
-                "failed_at" => now()
-            ]);
-        }
-
-        return redirect(route("order", ["filter_date" => $filter_date]));
-
-    }
-
-    public function reCrawlOrder($key = "start"){
-        $missingValueOrders = Order::where("date", $this->previousDay(date("Y-m-d")))
-            ->whereRaw("{$key} IS NULL")->get();
-
-        if(!$missingValueOrders) return;
-
-        foreach($missingValueOrders as $order){
-
-            $stock = Stock::where("code", $order->code)->first();
-            $data = new CrawlOrder($stock->type, $order->code);
-
-            $order->{$key} = $data->{$key};
-            $order->save();
-        }
-    }
 
     public function crawlData($filter_date = null){
 
@@ -655,7 +567,6 @@ class StockController extends Controller
 
             $this->xz($filter_date);
             $this->agency($filter_date);
-            $this->crawlOrder($filter_date);
 
         }
 

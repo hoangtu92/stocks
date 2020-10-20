@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Crawler\Crawler;
-use App\Dl;
+use App\Holiday;
 use App\StockOrder;
 use App\StockPrice;
 use Illuminate\Support\Facades\DB;
@@ -20,44 +20,36 @@ class OrderController extends Controller
 
         $d = date_create($filter_date);
 
-        //If weekend
-        if($d->format("N") == 6){
-            return $this->place_order($this->previousDay($filter_date));
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$d->format('Y')}")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+
+        //If weekend or holiday
+        if ($d->format("N") >= 6 || in_array($d->format("Y-m-d"), $holiday)){
+            return false;
         }
-
-        $short_sell = StockOrder::SHORT_SELL;
-        $buy_long = StockOrder::BUY_LONG;
-        $sell = StockOrder::SELL;
-        $buy = StockOrder::BUY;
-
 
         /**
          * Monitor General stock price
          */
-        $crawler->monitorGeneralStock();
+        //$crawler->monitorGeneralStock();
 
 
-        $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
-            ->select("dl.date")
-            ->addSelect("dl.code")
-            ->addSelect("dl.open")
-            ->addSelect("dl.low")
-            ->addSelect("dl.high")
-            ->addSelect("dl.price_907")
-            ->addSelect("dl.borrow_ticket")
-            ->addSelect("stocks.type")
-            ->where("dl.final", ">=", 10)
-            ->where("dl.final", "<=", 170)
-            ->whereRaw("dl.agency IS NOT NULL")
-            ->where("dl.date", $this->previousDay($filter_date))->get();
+        $stocks = $crawler->getDL1Stocks($filter_date);
 
         if(!$stocks)
-            return $this->place_order($this->previousDay($filter_date));
+            $stocks =  $crawler->getDL1Stocks($this->previousDay($filter_date));
 
-       /* $leftOverStocks = DB::table("dl")
-            ->join("stock_orders", "stock_orders.code", "=", "dl.code")
-            //->where()
-            ->get();*/
+        //echo json_encode($stocks);
+
+        /*$dlStocks = [];
+        foreach($stocks as $stock){
+            $dlStocks[] = $stock->code;
+        }
+
+        $stocks_dl2 = $crawler->getDL2Stocks($filter_date, $dlStocks);*/
 
 
         foreach ($stocks as $stock){
@@ -71,11 +63,28 @@ class OrderController extends Controller
                  * ---------------------------------------------------------------------------------------------------------------
                  */
 
-                $crawler->monitorStock($stock, $stockPrice, $filter_date);
+                $crawler->monitorStock($stock, $stockPrice);
 
             }
 
         }
+
+        /**
+         * Monitor Dl2 stocks price
+         */
+
+        /*if($stocks_dl2){
+            foreach ($stocks_dl2 as $dl2){
+
+                $stockPrices = StockPrice::where("code", $dl2->code)
+                    ->where("date", $filter_date)
+                    ->orderBy("tlong", "asc")->get();
+
+                foreach($stockPrices as $stockPrice) {
+                    $crawler->monitorDl2Stock($dl2, $stockPrice, $filter_date);
+                }
+            }
+        }*/
 
         return redirect(route("test", ["filter_date" => $filter_date]));
     }

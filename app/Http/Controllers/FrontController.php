@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Crawler\Crawler;
 use App\FailedCrawl;
 use App\GeneralStock;
+use App\Holiday;
 use DateTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -29,15 +30,18 @@ class FrontController extends Controller
                 $filter_date = $this->previousDay($filter_date);
             }
         }
-
         $d = date_create($filter_date);
-        //If weekend
-        if ($d->format("N") == 6) {
-            $filter_date = $d->modify("-1day")->format("Y-m-d");
-        }
 
-        if ($d->format("N") == 7) {
-            $filter_date = $d->modify("-2day")->format("Y-m-d");
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  '{$d->format('Y')}'")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+
+
+        //If weekend
+        if ($d->format("N") >= 6 || in_array($filter_date, $holiday)) {
+            $filter_date = $this->previousDay($filter_date);
         }
 
         $crawler = new Crawler();
@@ -47,6 +51,8 @@ class FrontController extends Controller
         if($data == null){
             return redirect(route("order", ["filter_date" => $this->previousDay($filter_date)]));
         }
+
+        $tomorrow = $this->nextDay($filter_date);
 
 
         $header = [
@@ -88,14 +94,12 @@ class FrontController extends Controller
 
         ];
 
-        return view("backend.order")->with(compact("data", "header", "filter_date"));
+        return view("backend.order")->with(compact("data", "header", "filter_date", "tomorrow"));
 
     }
 
     public function data($date = null)
     {
-
-
         $crawler = new Crawler();
         $data = $crawler->getStockData($date);
 
@@ -125,7 +129,7 @@ class FrontController extends Controller
             "max" => "最高",
             "lowest" => "最低",
             "arav_final" => "成交價",
-            //"price_range" => "漲跌幅",
+            "price_range" => "漲跌幅",
             "order_price_range" => "開盤漲幅",
             "price_907" => "9:07價",
 
@@ -157,6 +161,7 @@ class FrontController extends Controller
             "predict_20d_average" => "20MA預測",
             "predict_final" => "收盤預測",
             "predict_BK" => "預測漲跌with開盤",
+            "custom_general_predict" => "預測",
 
         ];
 
@@ -199,6 +204,7 @@ class FrontController extends Controller
             //->addSelect(DB::raw("( (SELECT predict_20d_average)*20 - last_19_days.sum_today_final) as predict_final"))
             ->addSelect("general_stocks.predict_final as predict_final")
             ->addSelect(DB::raw("(IF(general_start < -1, 1, (SELECT predict_final) - general_start)) as predict_BK"))
+            ->addSelect("general_stocks.custom_general_predict")
             ->addSelect(DB::raw("( ROUND(((general_start - (SELECT yesterday_final))/(SELECT yesterday_final))*100, 2) ) as general_start_rate"))
             ->addSelect(DB::raw("( ROUND(((general_stocks.today_final - (SELECT yesterday_final))/(SELECT yesterday_final))*100, 2) ) as range_value"))
             ->whereRaw("DAYOFWEEK(general_stocks.date) BETWEEN 2 and 6")

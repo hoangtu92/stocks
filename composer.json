@@ -18,7 +18,8 @@
         "laravel/framework": "^7.22.2",
         "laravel/tinker": "^2.0",
         "symfony/dom-crawler": "^5.1",
-        "ext-dom": "*"
+        "ext-dom": "*",
+        "ext-http": "*"
     },
     "require-dev": {
         "facade/ignition": "^2.0",
