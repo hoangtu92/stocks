@@ -1,30 +1,6 @@
-<style>
-    .level-3 {
-        background-color: red;
-    }
+@extends("app")
 
-    .level-2 {
-        background-color: yellow;
-    }
-
-    .level-1 {
-
-    }
-    th{
-        text-transform: uppercase;
-    }
-    small{
-        font-size: 9px
-    }
-    select{
-        height: 30px;
-        padding: 5px 20px;
-    }
-    label{
-        width: 100%;
-        display: block;
-    }
-</style>
+@section("content")
 <form id="update" action="{{route("update_order")}}" method="post">
     @csrf
 
@@ -62,3 +38,4 @@
 </table>
     <input type="submit" value="Save" style="padding: 5px 10px; float: right; margin-top: 20px">
 </form>
+@endsection

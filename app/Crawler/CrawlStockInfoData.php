@@ -10,17 +10,6 @@ class CrawlStockInfoData extends Crawler{
     public function __construct($url){
         parent::__construct();
 
-        /*$stocks_str = implode("|", array_reduce($stocks, function ($t, $e){
-            $t[] = "{$e['type']}_{$e['code']}.tw";
-            return $t;
-        }, []));
-
-        //?ex_ch=tse_3218.tw
-        $url = 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?'.http_build_query([
-                "ex_ch" => $stocks_str,
-                "t" => time()
-            ]);*/
-
         $response = $this->get_content($url);
 
         $json = json_decode($response);
@@ -34,6 +23,7 @@ class CrawlStockInfoData extends Crawler{
                 $latest_trade_price = isset($stock->z) ? $this->format_number($stock->z) : 0;
                 $trade_volume = isset($stock->tv) ? $this->format_number($stock->tv) : 0;
                 $accumulate_trade_volume = isset($stock->v) ? $this->format_number($stock->v) : 0;
+                $yesterday_final = isset($stock->y) ? $this->format_number($stock->y) : 0;
 
                 $best_bid_price = explode("_", $stock->b);
                 $best_bid_volume = explode("_", $stock->g);
@@ -58,6 +48,7 @@ class CrawlStockInfoData extends Crawler{
                     'open' => $open,
                     'high' => $high,
                     'low' => $low,
+                    'yesterday_final' => $yesterday_final,
                 ];
 
                 //If stock price is not exists. create

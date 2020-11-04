@@ -7,6 +7,7 @@ use App\Holiday;
 use App\StockOrder;
 use App\StockPrice;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
@@ -89,11 +90,13 @@ class OrderController extends Controller
         return redirect(route("test", ["filter_date" => $filter_date]));
     }
 
-    public function test($filter_date = null)
+    public function test($filter_date = null, Request $request)
     {
 
         if(!$filter_date)
-            $filter_date = date("Y-m-d");
+            if($request->filled("filter_date"))
+                $filter_date = $request->filter_date;
+            else $filter_date = date("Y-m-d");
 
         $header = [
             "date" => "日期",
@@ -106,6 +109,7 @@ class OrderController extends Controller
             "fee" => "手續費",
             "tax" => "交易稅",
             "type" => "交易別",
+            "order_type" => "Order_type",
            // "closed" => "Closed"
         ];
 
@@ -122,7 +126,8 @@ class OrderController extends Controller
             "profit_percent" => "獲利率",
             "fee" => "手續費",
             "tax" => "交易稅",
-            "type" => "交易別"
+            "type" => "交易別",
+            "order_type" => "Order_type",
         ];
 
         $short_sell = StockOrder::SHORT_SELL;
@@ -152,8 +157,10 @@ class OrderController extends Controller
             AND so.tlong > stock_orders.tlong 
             AND ((stock_orders.type = '{$sell}' AND so.type = '{$buy}') OR (stock_orders.type = '{$buy}' AND so.type = '{$sell}') )
             LIMIT 1) as closed"))
+            ->addSelect("stock_orders.order_type")
 
             ->havingRaw("closed is NULL")
+            ->where("date", $filter_date)
 
             ->whereRaw("(stock_orders.deal_type = '{$short_sell}' AND stock_orders.type = '{$sell}')  OR (stock_orders.deal_type = '{$buy_long}' AND stock_orders.type = '{$buy}')")
             ->orderBy("stock_orders.date", "asc")
@@ -165,6 +172,7 @@ class OrderController extends Controller
             ->join("stocks", "stocks.code", "=", "stock_orders.code")
             ->select(DB::raw("stock_orders.code as code"))
             ->addSelect("stock_orders.date")
+
             ->addSelect(DB::raw("DATE_FORMAT(FROM_UNIXTIME(stock_orders.tlong/1000), '%H:%i:%s') as close_time"))
             ->addSelect(DB::raw("CONCAT(stock_orders.code, '-', stocks.name) as stock"))
             ->addSelect("stock_orders.qty")
@@ -182,6 +190,7 @@ class OrderController extends Controller
             ->addSelect(DB::raw("ROUND(tax, 0) as tax"))
 
             ->addSelect(DB::raw("IF(stock_orders.type = '0', 'SELL', 'BUY') as type"))
+            ->addSelect("stock_orders.order_type")
             ->where("date", $filter_date)
             ->whereRaw("(stock_orders.deal_type = '{$short_sell}' AND stock_orders.type = '{$buy}') OR (stock_orders.deal_type = '{$buy_long}' AND stock_orders.type = '{$sell}')")
             ->distinct("code")
@@ -191,6 +200,6 @@ class OrderController extends Controller
             ->toArray();
 
 
-        return view("backend.place_order")->with(compact("openDeal","closeDeal", "header", "header2"));
+        return view("backend.place_order")->with(compact("openDeal","closeDeal", "header", "header2", "filter_date"));
     }
 }

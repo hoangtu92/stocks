@@ -2,7 +2,9 @@
 
 namespace App\Console;
 
-use App\Crawler\RealTime;
+use App\Crawler\RealTime\RealtimeDL0;
+use App\Crawler\RealTime\RealtimeGeneral;
+use App\Crawler\RealTime\RealTimeDL1;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use Illuminate\Support\Facades\Log;
@@ -45,12 +47,37 @@ class Kernel extends ConsoleKernel
             /**
              * Start to monitor stock data
              */
-            Log::info("Start realtime crawl");
-            $realTime = new RealTime();
-            $realTime->monitor(date("Y-m-d"));
+            Log::info("Start general realtime crawl");
+            $realTime = new RealtimeGeneral();
+            $realTime->monitor();
 
 
-        })->name("get_realtime_5")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
+        })->name("get_general_realtime")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
+
+
+        $schedule->call(function () {
+            /**
+             * Start to monitor stock data
+             */
+            Log::info("Start dl0 realtime crawl");
+            $realTime = new RealtimeDL0();
+            $realTime->monitor();
+
+
+        })->name("get_dl_0_realtime")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
+
+
+
+        $schedule->call(function () {
+            /**
+             * Start to monitor stock data
+             */
+            Log::info("Start dl1 realtime crawl");
+            $realTime = new RealTimeDL1();
+            $realTime->monitor();
+
+
+        })->name("get_dl_1_realtime")->everyMinute()->between("9:00", "13:35")->runInBackground()->withoutOverlapping();
 
 
         $schedule->call(function (){

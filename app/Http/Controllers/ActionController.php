@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Dl;
 use App\GeneralStock;
 use Illuminate\Http\Request;
+use Backpack\Settings\app\Models\Setting;
+use Illuminate\Support\Facades\Redirect;
 
 class ActionController extends Controller
 {
@@ -43,5 +45,21 @@ class ActionController extends Controller
         }
 
         return redirect()->back()->with("success", "Field updated");
+    }
+
+    public function update_server_status(Request $request){
+        $request->validate([
+            "server_status" => "required"
+        ]);
+
+        echo $request->server_status;
+        if($request->server_status){
+            Setting::set('server_status', '1');
+    }
+        else{
+            Setting::set('server_status', '0');
+        }
+
+        return Redirect::back()->with(["message" => "Server status updated"]);
     }
 }

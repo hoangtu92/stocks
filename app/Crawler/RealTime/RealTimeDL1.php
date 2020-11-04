@@ -1,30 +1,24 @@
 <?php
 
 
-namespace App\Crawler;
+namespace App\Crawler\RealTime;
 
-use App\Dl;
-use App\Dl2;
-use App\Holiday;
-use App\StockOrder;
-use App\StockPrice;
+use App\Crawler\Crawler;
+use App\Crawler\CrawlStockInfoData;
 use DateTime;
-use Illuminate\Support\Facades\Log;
 
 
-class RealTime extends Crawler
+
+class RealTimeDL1 extends Crawler
 {
 
-    public function monitor($filter_date = false)
+
+    public function monitor()
     {
 
         $now = new DateTime();
 
-        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$now->format('Y')}")->get()->toArray();
-        $holiday = array_reduce($h, function ($t, $e){
-            $t[] = $e['date'];
-            return $t;
-        }, []);
+        $holiday = $this->getHoliday();
 
         //If weekend or holiday
         if ($now->format("N") >= 6 || in_array($now->format("Y-m-d"), $holiday)){
@@ -34,8 +28,7 @@ class RealTime extends Crawler
         $start = new DateTime();
         $stop = new DateTime();
 
-        if(!$filter_date)
-            $filter_date = $now->format("Y-m-d");
+        $filter_date = $now->format("Y-m-d");
 
 
         $start->setTime(9, 0, 0);
@@ -49,20 +42,8 @@ class RealTime extends Crawler
             $this->getDL1Stocks($this->previousDay($filter_date));
         }
 
-        /*$dlStocks = [];
-        foreach($stocks as $stock){
-            $dlStocks[] = $stock->code;
-        }
-
-        $stocks_dl2 = $this->getDL2Stocks($filter_date, $dlStocks);*/
-
         while ($now >= $start && $now <= $stop) {
             //Working time
-
-            /**
-             * Monitor General stock price
-             */
-            $this->monitorGeneralStock();
 
             //Get realtime price of all stocks
             $url = $this->getUrlFromStocks($stocks->toArray());
@@ -75,7 +56,6 @@ class RealTime extends Crawler
              */
             if ($stocks) {
                 //Get realtime stock info of dl stocks
-                #$stockInfo = new CrawlStockInfoData($stocks->toArray());
 
                 foreach ($stocks as $stock) {
 
@@ -89,19 +69,7 @@ class RealTime extends Crawler
 
             }
 
-            /**
-             * Monitor Dl2 stocks price
-             */
-
-            /*if($stocks_dl2){
-                foreach ($stocks_dl2 as $dl2){
-                    if (isset($stockPrices[$dl2->code])) {
-                        $this->monitorDl2Stock($dl2, $stockPrices[$dl2->code], $filter_date);
-                    }
-                }
-            }*/
-
-            sleep(1);
+            sleep(5);
             $now = new DateTime();
         }
 

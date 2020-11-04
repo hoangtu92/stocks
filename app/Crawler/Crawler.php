@@ -12,6 +12,7 @@ use App\Holiday;
 use App\Order;
 use App\StockOrder;
 use App\StockPrice;
+use Backpack\Settings\app\Models\Setting;
 use DateTime;
 use ErrorException;
 use Goutte\Client;
@@ -47,6 +48,16 @@ class Crawler
             //Log::error($e->getMessage());
         }
         return null;
+    }
+
+    public function getHoliday(){
+        $year = date("Y");
+        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$year}")->get()->toArray();
+        $holiday = array_reduce($h, function ($t, $e){
+            $t[] = $e['date'];
+            return $t;
+        }, []);
+        return $holiday;
     }
 
     public function format_number($value){
@@ -447,54 +458,7 @@ class Crawler
 
 
     public function monitorGeneralStock(){
-        $response = json_decode($this->get_content("https://mis.twse.com.tw/stock/data/mis_ohlc_TSE.txt?".http_build_query(["_" => time()])));
 
-        if(isset($response->infoArray)){
-            $info = $response->infoArray[0];
-            if(isset($info->h) && isset($info->z) && isset($info->tlong) && isset($info->l)){
-                $generalPrice = GeneralPrice::where("date", date("Y-m-d"))->where("tlong", $info->tlong)->first();
-                $date = new DateTime();
-                date_timestamp_set($date, $info->tlong/1000);
-                if(!$generalPrice){
-                    $generalPrice = new GeneralPrice([
-                        'high' => $info->h,
-                        'low' => $info->l,
-                        'value' => $info->z,
-                        'date' => $date->format("Y-m-d"),
-                        'tlong' => $info->tlong
-                    ]);
-                }
-
-                $generalPrice->Save();
-                #Log::info("Realtime general price: ". json_encode($info));
-
-                /**
-                 * Update general stock page data
-                 */
-                $time = getdate($info->tlong/1000);
-                $generalStock = GeneralStock::where("date", $generalPrice->date)->first();
-                if(!$generalStock){
-                    $generalStock = new GeneralStock([
-                        "date" => $generalPrice->date
-                    ]);
-
-                }
-
-                if(!$generalStock->general_start){
-                    $generalStock->general_start = $generalPrice->value;
-                    $generalStock->save();
-                }
-                if($time["hours"] == 9 &&  $time["minutes"] == 7){
-                    $generalStock->price_905 = $generalPrice->value;
-                    $generalStock->save();
-                }
-                if($time["hours"] == 13 && in_array($time["minutes"], [30, 35])){
-                    $generalStock->today_final = $generalPrice->value;
-                    $generalStock->save();
-                }
-            }
-
-        }
     }
 
     public function monitorStock($stock, $stockPrice){
@@ -688,6 +652,7 @@ class Crawler
             ->addSelect("deal_type")
             ->addSelect("order_type")
             ->where("code", $stock->code)
+            ->where("order_type", "=", StockOrder::DL1)
             ->where("date", $stockPrice->date)
             ->whereRaw("( (stock_orders.deal_type = '{$short_sell}' AND stock_orders.type = '{$sell}') OR (stock_orders.deal_type = '{$buy_long}' AND stock_orders.type = '{$buy}') )")
             ->first();
@@ -926,7 +891,7 @@ class Crawler
 
     public function sell($stock){
 
-        return;
+        if(Setting::get('server_status') == '0') return;
 
         $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
         Log::debug($r);
@@ -943,7 +908,7 @@ class Crawler
 
     public function buy($stock){
 
-        return;
+        if(Setting::get('server_status') == '0') return;
 
         $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
         Log::debug($r);
@@ -958,6 +923,32 @@ class Crawler
         Log::debug($r);
     }
 
+    public function exec_on_working_time($filter_date = null, $callback = null){
+        $now = new DateTime();
+
+        $holiday = $this->getHoliday();
+
+        //If weekend or holiday
+        if ($now->format("N") >= 6 || in_array(date("Y-m-d"), $holiday)){
+            return false;
+        }
+
+        $start = new DateTime();
+        $stop = new DateTime();
+
+        if(!$filter_date)
+            $filter_date = $now->format("Y-m-d");
+
+        $start->setTime(9, 0, 0);
+        $stop->setTime(13, 35, 0);
+
+
+        while ($now >= $start && $now <= $stop) {
+            call_user_func($callback, $filter_date);
+        }
+
+        return true;
+    }
 
 }
 

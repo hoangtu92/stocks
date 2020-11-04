@@ -2,6 +2,8 @@
 
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
+use App\Crawler\RealTime\RealtimeDL0;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
@@ -34,28 +36,14 @@ Route::get("/place_order/{filter_date?}", "OrderController@place_order");
 Route::post("/update_general_predict", "ActionController@update_general_predict")->name("update_general_predict");
 Route::post("/update_final_predict", "ActionController@update_final_predict")->name("update_final_predict");
 Route::post("/update_order", "ActionController@update_order")->name("update_order");
+Route::post("/update_server_status", "ActionController@update_server_status")->name("update_server_status");
 Route::get("tt", function () {
-    $crawler = new App\Crawler\Crawler();
-    $r = [];
-
-    $list = $crawler->getStocksURL();
-
-    foreach ($list as $l){
-        echo $l->url."<br>";
-        /*$rs = json_decode($crawler->get_content($l->url));
-        if(isset($rs->msgArray)){
-            $r = array_merge($r, $rs->msgArray);
-        }*/
-
-        //sleep(1);
-    }
-
-    //echo json_encode($r);
-
+    $realTime = new RealtimeDL0();
+    $realTime->monitor();
 });
 
-Route::get("/tt2", function () {
-    $crawler = new App\Crawler\Crawler();
+Route::get("/test-proxy", function (Request $request) {
+    //$crawler = new App\Crawler\Crawler();
     /*$r = $crawler->curlGet("http://www.cmoney.tw/notice/chart/stock-chart-service.ashx", [
         "id" => 6233,
         "date" => "",
@@ -71,11 +59,54 @@ Route::get("/tt2", function () {
 
     //echo $crawler->previousDay("2020-10-05");
 
-    echo $crawler->curlGet("http://google.com");
+    $proxy = [
+        "87.101.81.115:8800",
+        "87.101.82.7:8800",
+        "87.101.81.200:8800",
+        "87.101.80.52:8800",
+        "87.101.81.50:8800",
+        "87.101.82.104:8800",
+        "87.101.81.217:8800",
+        "87.101.81.24:8800",
+        "87.101.81.88:8800",
+        "87.101.80.98:8800",
+        "87.101.83.49:8800",
+        "87.101.80.54:8800",
+        "87.101.82.149:8800",
+        "87.101.80.202:8800",
+        "87.101.83.106:8800",
+        "87.101.82.108:8800",
+        "87.101.80.65:8800",
+        "87.101.83.117:8800",
+        "87.101.82.27:8800",
+        "87.101.83.7:8800",
+        "87.101.83.224:8800",
+        "87.101.83.68:8800",
+        "87.101.80.60:8800",
+        "87.101.83.133:8800",
+        "87.101.82.134:8800",
+    ];
+
+    $p = rand(0, count($proxy)-1);
+    echo "Using proxy: {$proxy[$p]}<br>";
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, "http://st8.fun/ip");
+    curl_setopt($ch, CURLOPT_POST, false);
+    curl_setopt($ch, CURLOPT_PROXY, $proxy[$p]);
+    $data = curl_exec($ch);
+
+    if(curl_errno($ch)){
+        print curl_error($ch);
+    }else{
+        curl_close($ch);
+    }
+
+    echo $data;
 
 
 });
 
-Route::get("/ip", function (\Illuminate\Http\Request $request){
+Route::get("/ip", function (Request $request){
    echo $request->getClientIp();
 });

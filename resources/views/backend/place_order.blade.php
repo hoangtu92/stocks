@@ -1,116 +1,103 @@
-<style>
-    .level-3 {
-        background-color: red;
-    }
+@extends("app")
 
-    .level-2 {
-        background-color: yellow;
-    }
+@section("content")
+    <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; width: 100%">
+        <form method="get" action="{{ route("test") }}">
+            @csrf
+            <input type="date" name="filter_date" value="{{ $filter_date }}"
+                   style="width: 200px; height: 30px; padding: 5px 10px" onchange="this.form.submit()">
+        </form>
 
-    .level-1 {
+        @if(count($openDeal) > 0)
+            <h1>未實現損益</h1>
+            <table border='1' cellpadding='5' cellspacing='0'>
+                <thead>
+                <tr style="background-color: rgba(113,179,252,0.3)">
 
-    }
-    th{
-        text-transform: uppercase;
-    }
-    small{
-        font-size: 9px
-    }
-    select{
-        height: 30px;
-        padding: 5px 20px;
-    }
-    label{
-        width: 100%;
-        display: block;
-    }
-</style>
-<h1>未實現損益</h1>
+                    @foreach($header as $key => $value)
+                        <th>{{$value}}<br><small>{{$key}}</small></th>
+                    @endforeach
 
-<table border='1' cellpadding='5' cellspacing='0'>
-    <thead>
-    <tr style="background-color: rgba(113,179,252,0.3)">
+                </tr>
+                </thead>
+                <tbody>
+                @foreach($openDeal as $tr)
+                    <tr style="background-color: rgba(121,252,0,0.05)">
 
-        @foreach($header as $key => $value)
-            <th>{{$value}}<br><small>{{$key}}</small></th>
-        @endforeach
-
-    </tr>
-    </thead>
-    <tbody>
-    @if(count($openDeal) > 0)
-        @foreach($openDeal as $tr)
-            <tr style="background-color: rgba(121,252,0,0.05)">
-
-                @foreach($tr as $key=> $td)
-                    @if(!isset($header[$key])) @continue @endif
-                    @if(is_numeric($td) && preg_match("/profit/", $key))
-                            @if($td <= 0)
-                                <td style="color: green">{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
+                        @foreach($tr as $key=> $td)
+                            @if(!isset($header[$key])) @continue @endif
+                            @if(is_numeric($td) && preg_match("/profit/", $key))
+                                @if($td <= 0)
+                                    <td style="color: green">{{$td}}@if(preg_match("/range|rate|percent/", $key))
+                                            %@endif</td>
                                 @else
-                                <td style="color: red">{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
+                                    <td style="color: red">{{$td}}@if(preg_match("/range|rate|percent/", $key))
+                                            %@endif</td>
                                 @endif
-                        @else
-                            <td>{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
-                        @endif
+                            @else
+                                <td>{{$td}}@if(preg_match("/range|rate|percent/", $key))%@endif</td>
+                            @endif
 
+                        @endforeach
+
+
+                    </tr>
                 @endforeach
 
+                </tbody>
+            </table>
+
+            <hr>
+        @endif
+        <h1>已實現損益</h1>
+
+        <table border='1' cellpadding='5' cellspacing='0'>
+            <thead>
+            <tr style="background-color: rgba(113,179,252,0.3)">
+
+                @foreach($header2 as $key => $value)
+                    <th>{{$value}}<br><small>{{$key}}</small></th>
+                @endforeach
 
             </tr>
-        @endforeach
-    @endif
-    </tbody>
-</table>
+            </thead>
+            <tbody>
+            @if(count($closeDeal) > 0)
+                @foreach($closeDeal as $tr)
+                    <tr style="background-color: rgba(121,252,0,0.05)">
 
-<hr>
-<h1>已實現損益
-</h1>
-
-<table border='1' cellpadding='5' cellspacing='0'>
-    <thead>
-    <tr style="background-color: rgba(113,179,252,0.3)">
-
-        @foreach($header2 as $key => $value)
-            <th>{{$value}}<br><small>{{$key}}</small></th>
-        @endforeach
-
-    </tr>
-    </thead>
-    <tbody>
-    @if(count($closeDeal) > 0)
-        @foreach($closeDeal as $tr)
-            <tr style="background-color: rgba(121,252,0,0.05)">
-
-                    <td>{{$tr->date}}</td>
-                    <td>{{$tr->open_time}}</td>
-                    <td>{{$tr->close_time}}</td>
-                    <td>{{$tr->stock}}</td>
-                    <td>{{$tr->qty}}</td>
-                    @if($tr->type == 'SELL')
-                        <td>{{$tr->first_price}}</td>
-                        <td>{{$tr->second_price}}</td>
-                    @else
-                        <td>{{$tr->second_price}}</td>
-                        <td>{{$tr->first_price}}</td>
-                    @endif
-                    <td @if($tr->profit <= 0)  style="color: green" @else  style="color: red" @endif>{{$tr->profit}}</td>
-                    <td @if($tr->profit_percent <= 0)  style="color: green" @else  style="color: red" @endif>{{$tr->profit_percent}}%</td>
-                    <td>{{$tr->fee}}</td>
-                    <td>{{$tr->tax}}</td>
-                    <td>{{$tr->type}}</td>
+                        <td>{{$tr->date}}</td>
+                        <td>{{$tr->open_time}}</td>
+                        <td>{{$tr->close_time}}</td>
+                        <td>{{$tr->stock}}</td>
+                        <td>{{$tr->qty}}</td>
+                        @if($tr->type == 'SELL')
+                            <td>{{$tr->first_price}}</td>
+                            <td>{{$tr->second_price}}</td>
+                        @else
+                            <td>{{$tr->second_price}}</td>
+                            <td>{{$tr->first_price}}</td>
+                        @endif
+                        <td @if($tr->profit <= 0)  style="color: green"
+                            @else  style="color: red" @endif>{{$tr->profit}}</td>
+                        <td @if($tr->profit_percent <= 0)  style="color: green"
+                            @else  style="color: red" @endif>{{$tr->profit_percent}}%
+                        </td>
+                        <td>{{$tr->fee}}</td>
+                        <td>{{$tr->tax}}</td>
+                        <td>{{$tr->type}}</td>
 
 
-            </tr>
-        @endforeach
-    @endif
-    </tbody>
-</table>
+                    </tr>
+                @endforeach
+            @endif
+            </tbody>
+        </table>
+    </div>
 
-
-<script>
-    setInterval(function () {
-        window.location.reload();
-    }, 5000)
-</script>
-
+    <script>
+        setInterval(function () {
+            window.location.reload();
+        }, 5000)
+    </script>
+@endsection

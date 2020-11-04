@@ -1,30 +1,7 @@
-<style>
-    .level-3 {
-        background-color: red;
-    }
+@extends("app")
 
-    .level-2 {
-        background-color: yellow;
-    }
+@section("content")
 
-    .level-1 {
-
-    }
-    th{
-        text-transform: uppercase;
-    }
-    small{
-        font-size: 9px
-    }
-    select{
-        height: 30px;
-        padding: 5px 20px;
-    }
-    label{
-        width: 100%;
-        display: block;
-    }
-</style>
 <table border='1' cellpadding='5' cellspacing='0'>
     <thead>
     <tr>
@@ -81,3 +58,4 @@
 </table>
 
 
+@endsection

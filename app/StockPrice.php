@@ -23,6 +23,7 @@ class StockPrice extends Model
         "open",
         "high",
         "low",
+        "yesterday_final",
         "date",
         "tlong",
         "created_at",

@@ -23,6 +23,7 @@ class StockOrder extends Model
         "tlong",
         "type",
         "deal_type",
+        "order_type",
         "created_at",
         "modified_at"
     ];
@@ -33,8 +34,9 @@ class StockOrder extends Model
     const SELL = "0";
     const SHORT_SELL = "0";
     const BUY_LONG = "1";
-    const DL1 = "1";
-    const DL2 = "2";
+    const DL1 = "dl1";
+    const DL0 = "dl0";
+    const DL2 = "dl2";
 
     protected static function booted()
     {
