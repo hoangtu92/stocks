@@ -19,10 +19,10 @@ class CreateStockOrdersTable extends Migration
             $table->date("date");
             $table->string("code");
             $table->integer("qty")->default(1);
-            $table->decimal("price")->default(1);
-            $table->decimal("fee");
-            $table->decimal("tax");
-            $table->enum("type", [StockOrder::BUY, StockOrder::SELL]);
+            $table->decimal("buy")->default(0);
+            $table->decimal("sell")->default(0);
+            /*$table->decimal("fee");
+            $table->decimal("tax");*/
             $table->timestamps();
         });
     }

@@ -3,6 +3,7 @@
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
 use App\Crawler\RealTime\RealtimeDL0;
+use App\Dl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,7 @@ Route::get("/crawl/reAgency", "StockController@reCrawlAgency")->name("re_crawl_a
 
 Route::get("/test/{filter_date?}", "OrderController@test")->name("test");
 Route::get("/place_order/{filter_date?}", "OrderController@place_order");
+Route::get("/place_order_dl0/{filter_date?}", "OrderController@place_order_dl0");
 Route::post("/update_general_predict", "ActionController@update_general_predict")->name("update_general_predict");
 Route::post("/update_final_predict", "ActionController@update_final_predict")->name("update_final_predict");
 Route::post("/update_order", "ActionController@update_order")->name("update_order");
@@ -43,21 +45,6 @@ Route::get("tt", function () {
 });
 
 Route::get("/test-proxy", function (Request $request) {
-    //$crawler = new App\Crawler\Crawler();
-    /*$r = $crawler->curlGet("http://www.cmoney.tw/notice/chart/stock-chart-service.ashx", [
-        "id" => 6233,
-        "date" => "",
-        "action" => "r",
-        "ck" => "LKo3fMRv4ODb{VRQeQnAWNCjuR8nMAk7xMUR0JDVQAorTQVcsHCMHWjMpOErz",
-        "_" => 1601889319824
-    ], [
-        "referer" => "http://www.cmoney.tw/notice/chart/stockchart.aspx?action=r&id=6233",
-        "accept" => "application/json, text/javascript, ",
-    ]);
-
-    var_dump($r);*/
-
-    //echo $crawler->previousDay("2020-10-05");
 
     $proxy = [
         "87.101.81.115:8800",
@@ -110,3 +97,5 @@ Route::get("/test-proxy", function (Request $request) {
 Route::get("/ip", function (Request $request){
    echo $request->getClientIp();
 });
+
+Route::get("/dl0/{filter_date?}", "StockController@dl0");

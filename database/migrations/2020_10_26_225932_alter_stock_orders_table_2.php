@@ -16,6 +16,8 @@ class AlterStockOrdersTable2 extends Migration
     {
         Schema::table('stock_orders', function (Blueprint $table) {
             $table->string("order_type")->nullable(false)->change();
+            $table->boolean("closed")->default(false);
+            $table->bigInteger("tlong2")->comment("tlong");
         });
     }
 
@@ -28,7 +30,8 @@ class AlterStockOrdersTable2 extends Migration
     {
         Schema::table('stock_orders', function (Blueprint $table) {
             $table->enum("order_type", [StockOrder::DL1, StockOrder::DL2])->default(StockOrder::DL1)->comment("Is order from dl1 or dl2 stocks")->change();
-
+            $table->dropColumn("closed");
+            $table->dropColumn("tlong2");
         });
     }
 }

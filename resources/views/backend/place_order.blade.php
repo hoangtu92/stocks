@@ -71,13 +71,8 @@
                         <td>{{$tr->close_time}}</td>
                         <td>{{$tr->stock}}</td>
                         <td>{{$tr->qty}}</td>
-                        @if($tr->type == 'SELL')
-                            <td>{{$tr->first_price}}</td>
-                            <td>{{$tr->second_price}}</td>
-                        @else
-                            <td>{{$tr->second_price}}</td>
-                            <td>{{$tr->first_price}}</td>
-                        @endif
+                        <td>{{$tr->second_price}}</td>
+                        <td>{{$tr->first_price}}</td>
                         <td @if($tr->profit <= 0)  style="color: green"
                             @else  style="color: red" @endif>{{$tr->profit}}</td>
                         <td @if($tr->profit_percent <= 0)  style="color: green"
@@ -85,7 +80,7 @@
                         </td>
                         <td>{{$tr->fee}}</td>
                         <td>{{$tr->tax}}</td>
-                        <td>{{$tr->type}}</td>
+                        <td>{{$tr->order_type}}</td>
 
 
                     </tr>
@@ -98,6 +93,6 @@
     <script>
         setInterval(function () {
             window.location.reload();
-        }, 5000)
+        }, 120000)
     </script>
 @endsection

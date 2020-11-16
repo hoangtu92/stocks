@@ -14,14 +14,6 @@ class RealtimeGeneral extends Crawler
     public function monitor()
     {
         $now = new DateTime();
-
-        $holiday = $this->getHoliday();
-
-        //If weekend or holiday
-        if ($now->format("N") >= 6 || in_array($now->format("Y-m-d"), $holiday)){
-            return false;
-        }
-
         $start = new DateTime();
         $stop = new DateTime();
 

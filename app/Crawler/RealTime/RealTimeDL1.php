@@ -17,14 +17,6 @@ class RealTimeDL1 extends Crawler
     {
 
         $now = new DateTime();
-
-        $holiday = $this->getHoliday();
-
-        //If weekend or holiday
-        if ($now->format("N") >= 6 || in_array($now->format("Y-m-d"), $holiday)){
-            return false;
-        }
-
         $start = new DateTime();
         $stop = new DateTime();
 
@@ -42,11 +34,13 @@ class RealTimeDL1 extends Crawler
             $this->getDL1Stocks($this->previousDay($filter_date));
         }
 
+        $url = $this->getUrlFromStocks($stocks->toArray());
+
         while ($now >= $start && $now <= $stop) {
             //Working time
 
             //Get realtime price of all stocks
-            $url = $this->getUrlFromStocks($stocks->toArray());
+
             $stockInfo = new CrawlStockInfoData($url);
 
             #Log::debug(json_encode($stockInfo->data));

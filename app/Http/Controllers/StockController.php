@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Agent;
 use App\Arav;
+use App\Crawler\Crawler;
 use App\Crawler\CrawlHoliday;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
@@ -18,6 +19,7 @@ use App\FailedCrawl;
 use App\Holiday;
 use App\Order;
 use App\Stock;
+use DateTime;
 use DOMDocument;
 use Goutte\Client;
 use Illuminate\Support\Facades\DB;
@@ -592,5 +594,51 @@ class StockController extends Controller
 
         }
 
+    }
+
+    public function dl0($filter_date = null){
+        $now = new DateTime();
+
+        if(!$filter_date)
+            $filter_date = $now->format("Y-m-d");
+
+        $includeFilter = new DLIncludeFilter($filter_date);
+        $excludeFilter = new DLExcludeFilter($filter_date);
+
+        //Get DL0 stocks
+        $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
+            ->select("dl.date")
+            ->addSelect("dl.dl_date")
+            ->addSelect("dl.id")
+            ->addSelect("dl.code")
+            ->addSelect("dl.range")
+            ->addSelect("dl.open")
+            ->addSelect("dl.low")
+            ->addSelect("dl.high")
+            ->addSelect("dl.price_907")
+            ->addSelect("stocks.type")
+            ->where("dl.final", "<", 170)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->whereIn("dl.date", [
+                $filter_date,
+                $this->previousDay($filter_date),
+                $this->previousDay($this->previousDay($filter_date)),
+                $this->previousDay($this->previousDay($this->previousDay($filter_date))),
+                $this->previousDay($this->previousDay($this->previousDay($this->previousDay($filter_date)))),
+                $this->previousDay($this->previousDay($this->previousDay($this->previousDay($this->previousDay($filter_date))))),
+            ])
+            ->whereIn("dl.code", $includeFilter->stockList)
+            ->whereNotIn("dl.code", $excludeFilter->stockList)
+            ->get()->toArray();
+
+
+        echo $this->toTable($stocks, [
+           "date" => "Date",
+           "code" => "Code",
+           "range" => "Range",
+           "open" => "Open",
+           "low" => "Low",
+           "high" => "High",
+        ]);
     }
 }

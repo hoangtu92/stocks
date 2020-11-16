@@ -7,6 +7,12 @@
           <mappings>
             <mapping deploy="/" local="$PROJECT_DIR$" web="/" />
           </mappings>
+          <excludedPaths>
+            <excludedPath path="/bootstrap" />
+            <excludedPath path="/config" />
+            <excludedPath path="/tests" />
+            <excludedPath path="/vendor" />
+          </excludedPaths>
         </serverdata>
       </paths>
     </serverData>

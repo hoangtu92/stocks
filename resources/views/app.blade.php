@@ -18,6 +18,7 @@
             font-weight: 200;
             height: 100vh;
             margin: 0;
+
         }
 
         .full-height {
@@ -61,6 +62,10 @@
 
         .m-b-md {
             margin-bottom: 30px;
+        }
+
+        table{
+            margin-bottom: 30px
         }
     </style>
 
