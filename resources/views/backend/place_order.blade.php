@@ -18,6 +18,8 @@
                         <th>{{$value}}<br><small>{{$key}}</small></th>
                     @endforeach
 
+                    <th>Action</th>
+
                 </tr>
                 </thead>
                 <tbody>
@@ -40,9 +42,23 @@
 
                         @endforeach
 
+                        <td><form method="post" action="{{ route("close_order") }}">
+                                @csrf
+                                <input type="hidden" name="order_id" value="{{ $tr->order_id  }}">
+                                <input class="red-btn" type="submit" value="Close">
+                            </form> </td>
 
                     </tr>
                 @endforeach
+
+                <tr>
+                    <td colspan="12" style="border: none">
+                        <form method="post" action="{{ route("close_all_orders") }}">
+                            @csrf
+                            <p class="server" style="text-align: right"><input class="red-btn" type="submit" value="Close all orders"></p>
+                        </form>
+                    </td>
+                </tr>
 
                 </tbody>
             </table>
@@ -66,6 +82,7 @@
                 @foreach($closeDeal as $tr)
                     <tr style="background-color: rgba(121,252,0,0.05)">
 
+                        <td>{{$tr->id}}</td>
                         <td>{{$tr->date}}</td>
                         <td>{{$tr->open_time}}</td>
                         <td>{{$tr->close_time}}</td>

@@ -60,6 +60,20 @@
             text-transform: uppercase;
         }
 
+        .red-btn{
+            padding: 7px 10px;
+            background: red;
+            color: white;
+            border: none; cursor: pointer
+        }
+
+        .blue-btn{
+            padding: 7px 10px;
+            background: #2162ff;
+            color: white;
+            border: none; cursor: pointer
+        }
+
         .m-b-md {
             margin-bottom: 30px;
         }

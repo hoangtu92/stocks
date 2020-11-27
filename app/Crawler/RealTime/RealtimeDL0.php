@@ -11,16 +11,20 @@ use App\Crawler\DLIncludeFilter;
 use App\Dl;
 use App\GeneralPrice;
 use App\GeneralStock;
-use App\StockOrder;
 use DateTime;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class RealtimeDL0 extends Crawler
 {
 
-    public function monitor()
+    public function __invoke()
     {
+
+        /**
+         * Start to monitor stock data
+         */
+        Log::info("Start dl0 realtime crawl");
+
         $now = new DateTime();
         $start = new DateTime();
         $stop = new DateTime();
@@ -76,12 +80,23 @@ class RealtimeDL0 extends Crawler
 
         //Working time
         $currentGeneral = GeneralPrice::where("date", $filter_date)->orderBy("tlong", "desc")->first();
+        $previousGeneral = null;
+
+        if($currentGeneral){
+            $previousGeneral = GeneralPrice::where("date", $filter_date)
+                ->where("tlong", "<=", $currentGeneral->tlong - 300000)
+                ->orderByDesc("tlong")
+                ->first();
+        }
+
+
+        $generalStock   = GeneralStock::where( "date", $filter_date )->first();
         $yesterdayGeneral = GeneralStock::where("date", $this->previousDay($filter_date))->first();
 
         # Log::debug(json_encode([$currentGeneral->value, $yesterdayGeneral->today_final]));
 
         //1. general current price > yesterday general final
-        if ($currentGeneral->value > $yesterdayGeneral->today_final) {
+        if ($currentGeneral && $currentGeneral->value > $yesterdayGeneral->today_final) {
 
             //Get realtime price of all stocks
             $url = $this->getUrlFromStocks($stocks->toArray());
@@ -102,7 +117,7 @@ class RealtimeDL0 extends Crawler
                         $stockPrice = $stockInfo->data[$stock->code];
 
 
-                        $this->monitorDL0($stockPrice);
+                        $this->monitorDL0($stockPrice, $generalStock, $yesterdayGeneral, $previousGeneral, $currentGeneral);
 
 
                     }

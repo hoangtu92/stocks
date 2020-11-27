@@ -39,25 +39,11 @@ class OrderController extends Controller
 
         StockOrder::where("date", $filter_date)->where("order_type", StockOrder::DL1)->delete();
 
-        /**
-         * Monitor General stock price
-         */
-        //$crawler->monitorGeneralStock();
-
 
         $stocks = $crawler->getDL1Stocks($filter_date);
 
         if(!$stocks)
             $stocks =  $crawler->getDL1Stocks($this->previousDay($filter_date));
-
-        //echo json_encode($stocks);
-
-        /*$dlStocks = [];
-        foreach($stocks as $stock){
-            $dlStocks[] = $stock->code;
-        }
-
-        $stocks_dl2 = $crawler->getDL2Stocks($filter_date, $dlStocks);*/
 
 
         foreach ($stocks as $stock){
@@ -139,11 +125,7 @@ class OrderController extends Controller
         foreach ($stocks as $stock){
             $stockPrices = StockPrice::where("code", $stock->code)
                 ->where("date", $filter_date)
-                ->orderBy("tlong")->get();
-
-            if($stock->code == 3666){
-                Log::debug(json_encode($stockPrices));
-            }
+                ->orderBy("tlong", "asc")->get();
 
             foreach($stockPrices as $stockPrice){
                 $crawler->monitorDL0($stockPrice);
@@ -179,6 +161,7 @@ class OrderController extends Controller
         ];
 
         $header2 = [
+            "id" => "ID",
             "date" => "日期",
             "open_time" => "Open Time",
             "close_time" => "Close Time",
@@ -200,6 +183,7 @@ class OrderController extends Controller
             ->join("stocks", "stocks.code", "=", "stock_orders.code")
             ->select(DB::raw("stock_orders.code as code"))
             ->addSelect("stock_orders.date")
+            ->addSelect("stock_orders.id as order_id")
             ->addSelect(DB::raw("DATE_FORMAT(FROM_UNIXTIME(tlong/1000), '%H:%i:%s') as open_time"))
             ->addSelect(DB::raw("CONCAT(stock_orders.code, '-', stocks.name) as stock"))
             ->addSelect("stock_orders.qty")
@@ -229,6 +213,7 @@ class OrderController extends Controller
             ->join("stocks", "stocks.code", "=", "stock_orders.code")
             ->select(DB::raw("stock_orders.code as code"))
             ->addSelect("stock_orders.date")
+            ->addSelect("stock_orders.id")
 
             ->addSelect(DB::raw("DATE_FORMAT(FROM_UNIXTIME(stock_orders.tlong2/1000), '%H:%i:%s') as close_time"))
             ->addSelect(DB::raw("CONCAT(stock_orders.code, '-', stocks.name) as stock"))
@@ -252,6 +237,7 @@ class OrderController extends Controller
             ->where("date", $filter_date)
             ->where("closed", true)
             ->distinct("code")
+            ->orderBy("stock_orders.id", "asc")
             ->orderBy("stock_orders.date", "desc")
             ->orderBy("stock_orders.created_at", "asc")
             ->get()

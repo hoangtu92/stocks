@@ -12,6 +12,7 @@
             <excludedPath path="/config" />
             <excludedPath path="/tests" />
             <excludedPath path="/vendor" />
+            <excludedPath path="/.env" />
           </excludedPaths>
         </serverdata>
       </paths>

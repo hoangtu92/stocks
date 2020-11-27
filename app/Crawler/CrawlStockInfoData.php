@@ -30,6 +30,9 @@ class CrawlStockInfoData extends Crawler{
                 $best_ask_price = explode("_", $stock->a);
                 $best_ask_volume = explode("_", $stock->f);
 
+                $pz = isset($stock->pz) ? $this->format_number($stock->pz) : 0;
+                $ps = isset($stock->ps) ? $this->format_number($stock->ps) : 0;
+
                 $open = $this->format_number($stock->o);
                 $high = $this->format_number($stock->h);
                 $low = $this->format_number($stock->l);
@@ -45,6 +48,8 @@ class CrawlStockInfoData extends Crawler{
                     'best_bid_volume' => $this->format_number($best_bid_volume[0]),
                     'best_ask_price' => $this->format_number($best_ask_price[0]),
                     'best_ask_volume' => $this->format_number($best_ask_volume[0]),
+                    'ps' => $ps,
+                    'pz' => $pz,
                     'open' => $open,
                     'high' => $high,
                     'low' => $low,

@@ -1,7 +1,8 @@
 @extends("app")
 
 @section("content")
-<form id="update" action="{{route("update_order")}}" method="post">
+
+<form id="update" action="{{route("re_crawl_agency")}}" method="get">
     @csrf
 
     <input type="hidden" name="date" value="{{$filter_date}}">
@@ -13,7 +14,8 @@
             @if(!isset($header[$key])) @continue @endif
         <th>{{$header[$key]}}<br><small>{{$key}}</small></th>
         @endforeach
-        <th>Ticket</th>
+       {{-- <th>Ticket</th>
+        --}}
 
     </tr>
     </thead>
@@ -26,16 +28,23 @@
         <td>{{$td}}@if(preg_match("/range|rate/", $key))%@endif</td>
         @endforeach
 
-        <td><select name="borrow_ticket[{{$tr->code}}]">
+       {{-- <td><select name="borrow_ticket[{{$tr->code}}]">
                 <option value="0" @if($tr->borrow_ticket == 0) selected @endif>0</option>
                 <option value="1" @if($tr->borrow_ticket == 1) selected @endif>1</option>
-            </select> </td>
+            </select> </td>--}}
+
+
 
     </tr>
     @endforeach
 
     </tbody>
 </table>
-    <input type="submit" value="Save" style="padding: 5px 10px; float: right; margin-top: 20px">
+    <p style=" margin-top: 20px">
+        {{--<input type="submit" value="Save" style="padding: 5px 10px; float: right;">--}}
+        <input class="blue-btn"  type="submit" value="ReCrawl missing agency" style="float: right">
+    </p>
+
 </form>
+
 @endsection

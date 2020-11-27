@@ -39,63 +39,9 @@ Route::post("/update_general_predict", "ActionController@update_general_predict"
 Route::post("/update_final_predict", "ActionController@update_final_predict")->name("update_final_predict");
 Route::post("/update_order", "ActionController@update_order")->name("update_order");
 Route::post("/update_server_status", "ActionController@update_server_status")->name("update_server_status");
-Route::get("tt", function () {
-    $realTime = new RealtimeDL0();
-    $realTime->monitor();
-});
 
-Route::get("/test-proxy", function (Request $request) {
-
-    $proxy = [
-        "87.101.81.115:8800",
-        "87.101.82.7:8800",
-        "87.101.81.200:8800",
-        "87.101.80.52:8800",
-        "87.101.81.50:8800",
-        "87.101.82.104:8800",
-        "87.101.81.217:8800",
-        "87.101.81.24:8800",
-        "87.101.81.88:8800",
-        "87.101.80.98:8800",
-        "87.101.83.49:8800",
-        "87.101.80.54:8800",
-        "87.101.82.149:8800",
-        "87.101.80.202:8800",
-        "87.101.83.106:8800",
-        "87.101.82.108:8800",
-        "87.101.80.65:8800",
-        "87.101.83.117:8800",
-        "87.101.82.27:8800",
-        "87.101.83.7:8800",
-        "87.101.83.224:8800",
-        "87.101.83.68:8800",
-        "87.101.80.60:8800",
-        "87.101.83.133:8800",
-        "87.101.82.134:8800",
-    ];
-
-    $p = rand(0, count($proxy)-1);
-    echo "Using proxy: {$proxy[$p]}<br>";
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, "http://st8.fun/ip");
-    curl_setopt($ch, CURLOPT_POST, false);
-    curl_setopt($ch, CURLOPT_PROXY, $proxy[$p]);
-    $data = curl_exec($ch);
-
-    if(curl_errno($ch)){
-        print curl_error($ch);
-    }else{
-        curl_close($ch);
-    }
-
-    echo $data;
-
-
-});
-
-Route::get("/ip", function (Request $request){
-   echo $request->getClientIp();
-});
 
 Route::get("/dl0/{filter_date?}", "StockController@dl0");
+Route::get("/cmoney/{code}/{filter_date?}", "StockController@cmoney");
+Route::post("/close_all_orders", "ActionController@close_orders")->name("close_all_orders");
+Route::post("/close_order", "ActionController@close_order")->name("close_order");

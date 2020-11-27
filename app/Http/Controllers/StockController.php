@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Agent;
 use App\Arav;
-use App\Crawler\Crawler;
 use App\Crawler\CrawlHoliday;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
@@ -24,6 +23,7 @@ use DOMDocument;
 use Goutte\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redirect;
 use Symfony\Component\DomCrawler\Field\InputFormField;
 
 class StockController extends Controller
@@ -38,8 +38,8 @@ class StockController extends Controller
         $this->today = date_create(now());
         $this->client = new Client();
         //nancyhsu0511@gmail.com
-        $data = ["email" => "kis77628@gmail.com", "password" => "ASDFvcx2z!"];
-        //$data = ["email" => "nancyhsu0511@gmail.com", "password" => "ASDFvcx2z!"];
+        //$data = ["email" => "kis77628@gmail.com", "password" => "ASDFvcx2z!"];
+        $data = ["email" => "nancyhsu0511@gmail.com", "password" => "ASDFvcx2z!"];
 
         $crawler = $this->client->request("GET", "https://histock.tw/login");
         $form = $crawler->selectButton('登入')->form();
@@ -514,12 +514,13 @@ class StockController extends Controller
         return redirect(route("data", ["date" => $filter_date]));
     }
 
+
     public function reCrawlAgency(){
         $dls = Dl::whereRaw("agency = ''")->get();
 
 
         if($dls == NULL){
-            return [];
+            return Redirect::back();
         }
 
         $agents = Agent::all("name")->toArray();
@@ -536,7 +537,7 @@ class StockController extends Controller
                 $dl->update(['agency' => NULL]);
             }
             else{
-                Log::info("Re Crawl Agency for {$dl->code} {$dl->dl_date}");
+                # Log::info("Re Crawl Agency for {$dl->code} {$dl->dl_date}");
                 # Log::info($stockAgents);
                 $dl->update($stockAgents);
             }
@@ -544,10 +545,8 @@ class StockController extends Controller
 
         }
 
-        return [];
+        return Redirect::back();
     }
-
-
 
     public function crawlData($filter_date = null){
 
@@ -641,4 +640,82 @@ class StockController extends Controller
            "high" => "High",
         ]);
     }
+
+    public function cmoney($code, $filter_date = null){
+
+        $referer = "http://www.cmoney.tw/notice/chart/stockchart.aspx?action=r&id={$code}";
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $referer);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $rr = curl_exec($ch);
+
+        if(preg_match("/var ck = \"(.+)\";/", $rr, $match)){
+
+            $ck = $match[1];
+
+            $url = "http://www.cmoney.tw/notice/chart/stock-chart-service.ashx";
+            $params = [
+                "action" => "r",
+                "id" => $code,
+                "ck" => $ck,
+                "_" => time()*1000
+            ];
+
+            if($filter_date){
+                $params['date'] = $filter_date;
+            }
+            $headers = [
+                "Connection" => "keep-alive",
+                "Pragma" => "no-cache",
+                "Cache-Control"=> "no-cache",
+                "Accept" => "application/json, text/javascript, */*; q=0.01",
+                "User-Agent" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+                "X-Requested-With" => "XMLHttpRequest",
+                "Referer" => $referer,
+                "Accept-Language" => "en-US,en;q=0.9,ko;q=0.8,zh-TW;q=0.7,zh;q=0.6,vi;q=0.5",
+            ];
+
+            $url = $url."?".http_build_query($params);
+
+            echo $url;
+
+
+            $cookies = array();
+            foreach ($_COOKIE as $key => $value)
+            {
+                if ($key != 'Array')
+                {
+                    $cookies[] = $key . '=' . $value;
+                }
+            }
+            //curl_setopt( $ch, CURLOPT_COOKIE, implode(';', $cookies) );
+            //curl_setopt($ch, CURLOPT_VERBOSE, 1);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            //curl_setopt($ch, CURLOPT_USERAGENT , "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36");
+            curl_setopt($ch, CURLOPT_HEADER, $headers);
+            curl_setopt($ch, CURLOPT_URL, $url);
+            //curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            $res = curl_exec($ch);
+
+            /*if(curl_errno($ch)){
+                echo "Error";
+                #$res = curl_error($ch);
+            }*/
+
+
+            curl_close($ch);
+
+
+
+            return $res;
+        }
+
+
+
+
+
+    }
+
 }

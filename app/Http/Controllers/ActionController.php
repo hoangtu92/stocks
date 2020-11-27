@@ -2,10 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Agent;
+use App\Crawler\Crawler;
 use App\Dl;
 use App\GeneralStock;
+use App\StockOrder;
+use App\StockPrice;
 use Illuminate\Http\Request;
 use Backpack\Settings\app\Models\Setting;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redirect;
 
 class ActionController extends Controller
@@ -52,14 +57,40 @@ class ActionController extends Controller
             "server_status" => "required"
         ]);
 
-        echo $request->server_status;
         if($request->server_status){
             Setting::set('server_status', '1');
-    }
+        }
         else{
             Setting::set('server_status', '0');
         }
 
         return Redirect::back()->with(["message" => "Server status updated"]);
     }
+
+    function close_orders (){
+
+        $orders = StockOrder::where("closed", false)->get();
+
+        foreach ($orders as $order){
+            $order->close_deal();
+        }
+
+        return Redirect::back()->with(["message" => "All orders closed"]);
+    }
+
+
+    function close_order(Request $request){
+        $request->validate([
+            "order_id" => "required"
+        ]);
+
+        $order = StockOrder::find($request->order_id);
+        if($order){
+            $order->close_deal();
+
+        }
+
+        return Redirect::back();
+    }
+
 }

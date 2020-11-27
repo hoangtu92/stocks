@@ -48,7 +48,7 @@ class CrawlAgency extends Crawler
 
         if(count($this->data) == 0){
             //Its really empty
-            # Log::info($crawler->outerHTML());
+            Log::info($crawler->outerHTML());
             return ["agency" => "", "total_agency_vol" => 0, "single_agency_vol" => 0, "agency_price" => 0];
         }
 
@@ -59,7 +59,10 @@ class CrawlAgency extends Crawler
 
         if(count($data) == 0){
             //No agency match the filter
-            return false;
+            Log::debug("No agency match the filter {$stock_code}");
+            Log::debug("Agent: ".json_encode($this->data));
+            Log::debug("Filter: ". json_encode($filter));
+            return ["agency" => "", "total_agency_vol" => 0, "single_agency_vol" => 0, "agency_price" => 0];
         }
 
         $data = array_reduce($data, function ($t, $e){

@@ -20,6 +20,8 @@ class StockPrice extends Model
         "best_bid_volume",
         "best_ask_price",
         "best_ask_volume",
+        "ps",
+        "pz",
         "open",
         "high",
         "low",
@@ -29,4 +31,13 @@ class StockPrice extends Model
         "created_at",
         "modified_at"
     ];
+
+    public function getCurrentPriceAttribute(){
+        return $this->latest_trade_price > 0 ? $this->latest_trade_price : $this->best_ask_price;
+    }
+
+    public function getCurrentPriceRangeAttribute(){
+        return $this->yesterday_final > 0 ? (($this->current_price - $this->yesterday_final)/$this->yesterday_final)*100 : 0;
+    }
+
 }
