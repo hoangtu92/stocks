@@ -2,11 +2,7 @@
 
 @section("content")
     <div style="display: flex; align-items: center; justify-content: center; flex-direction: column; width: 100%">
-        <form method="get" action="{{ route("test") }}">
-            @csrf
-            <input type="date" name="filter_date" value="{{ $filter_date }}"
-                   style="width: 200px; height: 30px; padding: 5px 10px" onchange="this.form.submit()">
-        </form>
+
 
         @if(count($openDeal) > 0)
             <h1>未實現損益</h1>
@@ -91,12 +87,14 @@
                         <td>{{$tr->second_price}}</td>
                         <td>{{$tr->first_price}}</td>
                         <td @if($tr->profit <= 0)  style="color: green"
-                            @else  style="color: red" @endif>{{$tr->profit}}</td>
+                            @else  style="color: red" @endif>{{$tr->profit*$tr->qty}}</td>
                         <td @if($tr->profit_percent <= 0)  style="color: green"
                             @else  style="color: red" @endif>{{$tr->profit_percent}}%
                         </td>
                         <td>{{$tr->fee}}</td>
                         <td>{{$tr->tax}}</td>
+
+
                         <td>{{$tr->order_type}}</td>
 
 

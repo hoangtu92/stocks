@@ -144,7 +144,15 @@
             </select></label>
     </p>
 </form>
+<div style="display: flex; align-items: center; justify-content: center; margin: 10px">
+    <form method="get" action>
+        @csrf
+        <input type="date" name="filter_date" value="{{ $filter_date }}"
+               style="width: 200px; height: 30px; padding: 5px 10px" onchange="this.form.submit()">
+    </form>
+</div>
 <div class="flex-center position-ref full-height">
+
     @yield("content")
 </div>
 </body>

@@ -1,23 +1,78 @@
 <?php
 
-namespace App\Crawler;
+namespace App\Jobs\Crawl;
 
+use App\Crawler\StockHelper;
+use App\Dl;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class CrawlLargeTradeRateSell extends Crawler {
+class CrawlLargeTrade implements ShouldQueue, ShouldBeUnique
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public $timeout = 0;
+    public $tries = 1;
+    protected $filter_date;
+    /**
+     * Create a new job instance.
+     *
+     * @return void
+     */
+    public function __construct($filter_date = null)
+    {
+        //
+        if(!$filter_date){
+            $filter_date = date("Y-m-d");
+        }
+        $this->filter_date = $filter_date;
+
+
+    }
+
+    /**
+     * Execute the job.
+     *
+     * @return void
+     */
+    public function handle()
+    {
+        //
+        Log::info("Crawling XZ data for ".$this->filter_date);
+        $dls = Dl::join("stocks", "stocks.code", "=", "dl.code")
+            ->select(DB::raw("dl.*, stocks.type"))
+            ->where("dl_date", $this->filter_date)->get();
+
+        foreach ($dls as $dl){
+
+            $result = $dl->type == "otc" ? $this->getTpex($this->filter_date, $dl->code) : $this->getTwse($this->filter_date, $dl->code);
+            if($result){
+                $dl->large_trade = $result["x"];
+                $dl->dynamic_rate_sell = $result["z"];
+
+                $dl->save();
+            }
+        }
+    }
 
     private function getPrevious3Days($date){
 
         $today = "{$date['year']}/{$date['month']}/{$date['day']}";
         $todayTW = "{$date['tw_year']}/{$date['month']}/{$date['day']}";
 
-        $day1before = $this->getDate($this->previousDay($today));
+        $day1before = StockHelper::getDate(StockHelper::previousDay($today));
         $day1beforeTW = "{$day1before['tw_year']}/{$day1before['month']}/{$day1before['day']}";
 
-        $day2before = $this->getDate($this->previousDay("{$day1before['year']}/{$day1before['month']}/{$day1before['day']}"));
+        $day2before = StockHelper::getDate(StockHelper::previousDay("{$day1before['year']}/{$day1before['month']}/{$day1before['day']}"));
         $day2beforeTW = "{$day2before['tw_year']}/{$day2before['month']}/{$day2before['day']}";
 
-        $day3before = $this->getDate($this->previousDay("{$day2before['year']}/{$day2before['month']}/{$day2before['day']}"));
+        $day3before = StockHelper::getDate(StockHelper::previousDay("{$day2before['year']}/{$day2before['month']}/{$day2before['day']}"));
         $day3beforeTW = "{$day3before['tw_year']}/{$day3before['month']}/{$day3before['day']}";
 
         return [$todayTW, $day1beforeTW, $day2beforeTW, $day3beforeTW];
@@ -29,15 +84,15 @@ class CrawlLargeTradeRateSell extends Crawler {
         $data = ["previous_3_days" => 0, "today" => 0];
         foreach ($result as $r){
             if($r[0] == $previousDate[0]){
-                $data["today"] = $this->format_number($r[1]);
+                $data["today"] = StockHelper::format_number($r[1]);
             }
             if(in_array($r[0], [$previousDate[1], $previousDate[2], $previousDate[3]] )){
-                $data["previous_3_days"] += $this->format_number($r[1]);
+                $data["previous_3_days"] += StockHelper::format_number($r[1]);
             }
         }
 
         $highestPrice = array_reduce($result, function ($t, $e){
-            $t = max($t, $this->format_number($e[6]));
+            $t = max($t, StockHelper::format_number($e[6]));
             return $t;
         }, 0);
 
@@ -50,7 +105,7 @@ class CrawlLargeTradeRateSell extends Crawler {
 
     public function getTpex($date, $stock_code){
 
-        $date = $this->getDate($date);
+        $date = StockHelper::getDate($date);
 
         $filter_date = "{$date['tw_year']}/{$date['month']}";
 
@@ -75,7 +130,7 @@ class CrawlLargeTradeRateSell extends Crawler {
                 "d" => $filter_date]);
 
 
-        $res = json_decode($this->get_content($url));
+        $res = json_decode(StockHelper::get_content($url));
 
         if(isset($res->aaData)){
 
@@ -85,7 +140,7 @@ class CrawlLargeTradeRateSell extends Crawler {
                     "stkno" => $stock_code,
                     "d" => $filter_date2]);
 
-            $res2 = json_decode($this->get_content($url2));
+            $res2 = json_decode(StockHelper::get_content($url2));
 
             $result = $res->aaData;
             if(isset($res2->aaData)){
@@ -103,7 +158,7 @@ class CrawlLargeTradeRateSell extends Crawler {
 
     public function getTwse($date, $stock_code){
 
-        $date = $this->getDate($date);
+        $date = StockHelper::getDate($date);
 
         $filter_date = "{$date['year']}{$date['month']}{$date['day']}";
 
@@ -124,7 +179,7 @@ class CrawlLargeTradeRateSell extends Crawler {
                 "stockNo" => $stock_code,
                 "date" => $filter_date]);
 
-        $res = json_decode($this->get_content($url));
+        $res = json_decode(StockHelper::get_content($url));
 
         if(isset($res->data)){
             $url2 = 'https://www.twse.com.tw/exchangeReport/STOCK_DAY?'.http_build_query([
@@ -132,7 +187,7 @@ class CrawlLargeTradeRateSell extends Crawler {
                     "stockNo" => $stock_code,
                     "date" => $filter_date2]);
 
-            $res2 = json_decode($this->get_content($url2));
+            $res2 = json_decode(StockHelper::get_content($url2));
 
             $result = $res->data;
             if(isset($res2->data)){

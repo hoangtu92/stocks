@@ -3,6 +3,7 @@
 namespace App\Crawler;
 
 use App\StockPrice;
+use Illuminate\Support\Facades\Redis;
 
 class CrawlStockInfoData extends Crawler{
 
@@ -56,20 +57,15 @@ class CrawlStockInfoData extends Crawler{
                     'yesterday_final' => $yesterday_final,
                 ];
 
-                //If stock price is not exists. create
-                $stockPrice = StockPrice::where("code", $stock->c)
-                    ->where("date", $stockInfo['date'])
-                    ->where("tlong", $stockInfo["tlong"])
-                    ->first();
 
-                if (!$stockPrice) {
-                    $stockPrice = new StockPrice($stockInfo);
-                    $stockPrice->save();
-                }
+                $stockPrice = new StockPrice($stockInfo);
+                $stockPrice->save();
+
+                //Cache current stock info data to redis
+                Redis::set("stock_info_{$stockPrice->code}", $stockPrice->toJson());
+
 
                 $this->data[$stock->c] = $stockPrice;
-
-
 
             }
 

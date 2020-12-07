@@ -10,19 +10,16 @@ use App\GeneralStock;
 use App\Holiday;
 use App\StockOrder;
 use App\StockPrice;
+use DateTime;
 use Goutte\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
-class Crawler
+class StockHelper
 {
 
-    public function __construct()
-    {
-
-    }
-
-    public function get_content($url)
+    public static function get_content($url)
     {
         try {
             return file_get_contents($url, false, stream_context_create(array(
@@ -31,6 +28,7 @@ class Crawler
                     "verify_peer_name" => false,
                 ),
             )));
+
         } catch (\Exception $e) {
             //Log::error($e->getMessage());
         }
@@ -38,7 +36,10 @@ class Crawler
         return null;
     }
 
-    public function getHoliday()
+    /**
+     * @return array
+     */
+    public static function getHoliday()
     {
         $year = date("Y");
         $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$year}")->get()->toArray();
@@ -48,15 +49,58 @@ class Crawler
             return $t;
         }, []);
 
-        return $holiday;
+        return (array) $holiday;
     }
 
-    public function format_number($value)
+    /**
+     * @return bool
+     */
+    public static function isHoliday(){
+        return in_array(date("Y-m-d"), self::getHoliday());
+    }
+
+    public static function crawlGet($url, $selector)
+    {
+        $client = new Client();
+        $crawler = $client->request("GET", $url);
+
+        return $crawler->filter($selector)->last();
+    }
+
+    /**
+     * @param $value
+     * @return float
+     */
+    public static function format_number($value)
     {
         return floatval(preg_replace("/[\,]/", "", $value));
     }
 
-    public function getDate($date)
+    /**
+     * @param $stocks
+     * @return string
+     */
+    public static function getUrlFromStocks($stocks)
+    {
+        $stocks_str = implode("|", array_reduce($stocks, function ($t, $e) {
+            $t[] = "{$e->type}_{$e->code}.tw";
+
+            return $t;
+        }, []));
+
+        //?ex_ch=tse_3218.tw
+        return 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?' . http_build_query([
+                "ex_ch" => $stocks_str,
+                "json" => 1,
+                "_" => time()
+            ]);
+    }
+
+    /**
+     * @param $date
+     * @return array
+     */
+    public static function getDate($date)
     {
         if (!$date) {
             $date = date_create(now());
@@ -78,27 +122,11 @@ class Crawler
         ];
     }
 
-    public function date_from_tw($tw_date)
-    {
-        $d = explode("/", $tw_date);
-        $year = $d[0] + 1911;
 
-        return "{$year}/{$d[1]}/{$d[2]}";
-    }
-
-    public function crawlGet($url, $selector)
-    {
-        $client = new Client();
-        $crawler = $client->request("GET", $url);
-
-        return $crawler->filter($selector)->last();
-    }
-
-
-    public function previousDay($day)
+    public static function previousDay($day)
     {
 
-        $date = $this->getDate($day);
+        $date = self::getDate($day);
         $previous_day = strtotime("$day -1 day");
         $previous_day_date = getdate($previous_day);
 
@@ -110,15 +138,15 @@ class Crawler
         }, []);
 
         if ($previous_day_date["wday"] == 0 || $previous_day_date["wday"] == 6 || in_array(date('Y-m-d', $previous_day), $holiday)) {
-            return $this->previousDay(date('Y-m-d', $previous_day));
+            return self::previousDay(date('Y-m-d', $previous_day));
         } else {
             return date('Y-m-d', $previous_day);
         }
     }
 
-    public function nextDay($day)
+    public static function nextDay($day)
     {
-        $date = $this->getDate($day);
+        $date = self::getDate($day);
         $next_day = strtotime("$day +1 day");
         $next_day_date = getdate($next_day);
 
@@ -130,16 +158,30 @@ class Crawler
         }, []);
 
         if ($next_day_date["wday"] == 0 || $next_day_date["wday"] == 6 || in_array(date('Y-m-d', $next_day), $holiday)) {
-            return $this->nextDay(date('Y-m-d', $next_day));
+            return self::nextDay(date('Y-m-d', $next_day));
         } else {
             return date('Y-m-d', $next_day);
         }
     }
 
-    public function previousDayJoin($day, $filter_date)
+    public static function offset_date($timestamp){
+        $time = new DateTime();
+        $time->setTimestamp($timestamp);
+
+        $tz=timezone_open("Asia/Taipei");
+
+        $offset =  timezone_offset_get($tz, $time);
+
+        $newdate = new DateTime();
+        $newdate->setTimestamp($time->getTimestamp() - $offset);
+
+        return $newdate;
+    }
+
+    public static function previousDayJoin($day, $filter_date)
     {
 
-        $d = $this->previousDay($filter_date);
+        $d = self::previousDay($filter_date);
 
         $data = DB::table("dl")
             ->addSelect("dl.code")
@@ -151,12 +193,12 @@ class Crawler
             ->groupBy("dl.code");
 
         if ($day == 2) {
-            $pv1 = $this->previousDayJoin(1, $d);
+            $pv1 = self::previousDayJoin(1, $d);
 
             return $data->joinSub($pv1, "previous_day_2_join", "dl.code", "=", "previous_day_2_join.code");
         }
         if ($day == 3) {
-            $pv1 = $this->previousDayJoin(2, $this->previousDay($d));
+            $pv1 = self::previousDayJoin(2, self::previousDay($d));
 
             return $data->joinSub($pv1, "previous_day_3_join", "dl.code", "=", "previous_day_3_join.code");
         }
@@ -165,12 +207,12 @@ class Crawler
     }
 
 
-    public function getStockData($filter_date = null, $code = null, $current_price = null, $current_highest_price = null)
+    public static function getStockData($filter_date = null, $code = null, $current_price = null, $current_highest_price = null)
     {
 
-        $previousDay1 = $this->previousDayJoin(1, $filter_date);
-        $previousDay2 = $this->previousDayJoin(2, $filter_date);
-        $previousDay3 = $this->previousDayJoin(3, $filter_date);
+        $previousDay1 = self::previousDayJoin(1, $filter_date);
+        $previousDay2 = self::previousDayJoin(2, $filter_date);
+        $previousDay3 = self::previousDayJoin(3, $filter_date);
 
 
         $data = DB::table("dl")
@@ -353,7 +395,7 @@ class Crawler
         } else {
             $data = $data->whereRaw("dl.agency IS NOT NULL")
                 ->where("dl.final", ">=", 10)
-                ->where("dl.final", "<=", 170)
+                ->where("dl.final", "<=", 200)
                 ->orderBy("dl.date", "desc")
                 ->orderBy("appearance", "desc")
                 ->orderBy("total_agency_rate", "desc")
@@ -367,73 +409,7 @@ class Crawler
     }
 
 
-    public function getStocksURL()
-    {
-
-        $stocks = DB::table("stocks")
-            ->whereRaw(" LENGTH(code) = 4");
-
-        $time = time();
-
-        $nop = 80;
-
-        $list = [];
-
-        for ($i = 0; $i < $stocks->count(); $i += $nop) {
-
-            $sub = DB::table("stocks")
-                ->whereRaw(" LENGTH(code) = 4")
-                ->limit($nop)->offset($i);
-
-            $list[] = DB::table(DB::raw("({$sub->toSql()}) as sub"))
-                ->mergeBindings($sub)
-                ->selectRaw('CONCAT("https://mis.twse.com.tw/stock/api/getStockInfo.jsp?json=1&delay=0&ex_ch=", GROUP_CONCAT(type, "_", code, ".tw" separator "|")) as url')
-                ->first();
-        }
-
-        return $list;
-    }
-
-    public function getUrlFromStocks($stocks)
-    {
-        $stocks_str = implode("|", array_reduce($stocks, function ($t, $e) {
-            $t[] = "{$e['type']}_{$e['code']}.tw";
-
-            return $t;
-        }, []));
-
-        //?ex_ch=tse_3218.tw
-        return 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?' . http_build_query([
-                "ex_ch" => $stocks_str,
-                "json" => 1,
-                "_" => time()
-            ]);
-    }
-
-    public function getDL1Stocks($filter_date)
-    {
-        if (!$filter_date) {
-            $filter_date = date("Y-m-d");
-        }
-
-        return Dl::join("stocks", "stocks.code", "=", "dl.code")
-            ->select("dl.date")
-            ->addSelect("dl.dl_date")
-            ->addSelect("dl.id")
-            ->addSelect("dl.code")
-            ->addSelect("dl.open")
-            ->addSelect("dl.low")
-            ->addSelect("dl.high")
-            ->addSelect("dl.price_907")
-            ->addSelect("dl.borrow_ticket")
-            ->addSelect("stocks.type")
-            ->where("dl.final", ">=", 10)
-            ->where("dl.final", "<=", 170)
-            ->whereRaw("dl.agency IS NOT NULL")
-            ->where("dl.date", $filter_date)->get();
-    }
-
-    public function monitorStock($stock, StockPrice $stockPrice, GeneralStock $generalStock, GeneralStock $yesterdayGeneral)
+    public static function monitorStockDL1($stock, StockPrice $stockPrice, GeneralStock $generalStock, GeneralStock $yesterdayGeneral)
     {
 
         if ($stockPrice->current_price <= 0) return;
@@ -494,7 +470,7 @@ class Crawler
                     $stock->save();
                 }
 
-                $data = $this->getStockData($stock->dl_date, $stockPrice->code, $stockPrice->current_price);
+                $data = self::getStockData($stock->dl_date, $stockPrice->code, $stockPrice->current_price);
 
                 #Log::info("AJ stock data". json_encode($data));
 
@@ -597,7 +573,7 @@ class Crawler
 
         else {
 
-            $this->closeOrder($stockPrice, $unclosed_order, $generalStock, $yesterdayGeneral);
+            self::closeOrder($stockPrice, $unclosed_order, $generalStock, $yesterdayGeneral);
         }
 
         /**
@@ -605,26 +581,27 @@ class Crawler
          */
     }
 
+
+
     /**
      * @param StockPrice $stockPrice
      * @param GeneralStock|null $generalStock
      * @param GeneralStock|null $yesterdayGeneral
      */
-    public function monitorDL0(StockPrice $stockPrice, GeneralStock $generalStock, GeneralStock $yesterdayGeneral)
+    public static function monitorDL0(StockPrice $stockPrice, GeneralStock $generalStock, GeneralStock $yesterdayGeneral)
     {
 
         if ($stockPrice->current_price <= 0) {
-            Log::debug("Price zero");
             return;
         }
 
-        $current_general = GeneralPrice::where("date", $stockPrice->date)->where("tlong", "<=", $stockPrice->tlong)->orderByDesc("tlong")->first();
+        #$current_general = GeneralPrice::where("date", $stockPrice->date)->where("tlong", "<=", $stockPrice->tlong)->orderByDesc("tlong")->first();
+        $current_general = StockHelper::getCurrentGeneralPrice($stockPrice->tlong);
 
         if(!$current_general) {
-            Log::debug("no general");
+            Log::debug("no fucking data");
             return;
         }
-
 
 
         $unclosed_order = StockOrder::where("code", $stockPrice->code)
@@ -658,26 +635,35 @@ class Crawler
             ) {
 
                 //3. current price <= Y, current price < high and current price range >= -1 , sell it now
-                if ($stockPrice->current_price < $stockPrice->yesterday_final
+                if ($stockPrice->current_price <= $stockPrice->yesterday_final
                     && $stockPrice->current_price < $stockPrice->high
                     && $stockPrice->current_price_range >= -3.5) {
 
-                    if(!$previous_order || ($previous_order && ( $previous_order->profit_percent > 0 || ($previous_order->profit_percent <= 0 && $current_general->value < $current_general->high) )) ){
-                        $order = new StockOrder([
-                            "order_type" => StockOrder::DL0,
-                            "deal_type" => StockOrder::SHORT_SELL,
-                            "date" => $stockPrice->date,
-                            "tlong" => $stockPrice->tlong,
-                            "code" => $stockPrice->code,
-                            "qty" => ceil(100/$stockPrice->current_price),
-                            "sell" => $stockPrice->best_bid_price,
-                            "closed" => false
-                        ]);
+                    if(!$previous_order || ($previous_order && ( $previous_order->profit_percent > 0 || ($previous_order->profit_percent <= 0 && $current_general['value'] < $current_general['high']) )) ){
 
-                        $order->save();
+                        if($previous_order) $time_since_first_order = (($stockPrice->tlong - $previous_order->tlong2) / 1000)/60; //Minutes
 
-                        Log::debug("{$stockPrice->stock_time["hours"]}:{$stockPrice->stock_time["minutes"]}:  [{$order->id}] Short sell {$stockPrice->code} at {$stockPrice->best_bid_price}");
-                        return;
+                        if(!$previous_order || ($previous_order && $time_since_first_order < 20 && $stockPrice->current_price < $previous_order->sell)){
+                            $order = new StockOrder([
+                                "order_type" => StockOrder::DL0,
+                                "deal_type" => StockOrder::SHORT_SELL,
+                                "date" => $stockPrice->date,
+                                "tlong" => $stockPrice->tlong,
+                                "code" => $stockPrice->code,
+                                "qty" => ceil(150/$stockPrice->current_price),
+                                "sell" => $stockPrice->best_bid_price,
+                                "closed" => false
+                            ]);
+
+                            $order->save();
+                            Log::debug("{$stockPrice->time->format('H:i:s')}:  [{$order->id}] Short sell {$stockPrice->code} at {$stockPrice->best_bid_price}");
+                            return;
+                        }
+
+
+
+
+
                     }
 
 
@@ -686,11 +672,15 @@ class Crawler
 
 
         } else {
-            $this->closeOrder($stockPrice, $unclosed_order, $generalStock, $yesterdayGeneral);
+            self::closeOrder($stockPrice, $unclosed_order, $generalStock, $yesterdayGeneral);
         }
 
 
     }
+
+
+
+
 
     /**
      * @param StockPrice $stockPrice
@@ -698,41 +688,39 @@ class Crawler
      * @param GeneralStock $generalStock
      * @param GeneralStock|null $yesterdayGeneral
      */
-    public function closeOrder(StockPrice $stockPrice, StockOrder $unclosed_order, GeneralStock $generalStock, GeneralStock $yesterdayGeneral = null)
+    public static function closeOrder(StockPrice $stockPrice, StockOrder $unclosed_order, GeneralStock $generalStock, GeneralStock $yesterdayGeneral = null)
     {
-        $current_general = GeneralPrice::where("date", $stockPrice->date)->where("tlong", "<=", $stockPrice->tlong)->orderByDesc("tlong")->first();
+        //$current_general = GeneralPrice::where("date", $stockPrice->date)->where("tlong", "<=", $stockPrice->tlong)->orderByDesc("tlong")->first();
+        $current_general = StockHelper::getCurrentGeneralPrice($stockPrice->tlong);
 
         if(!$current_general) return;
+
 
         $unclosed_order->buy = $stockPrice->current_price;
 
         //1. Current profit is greater or equal 2%
         //2. Current profit is greater or equal 1.5% and current price is greater than 50
         //2. Current profit is greater or equal 1.2% and current price is greater than 100
-        if (($unclosed_order->profit_percent >= 0.5)
+        if (($unclosed_order->profit_percent >= 0.4)
         ) {
             $unclosed_order->close_deal($stockPrice);
-            Log::debug("{$stockPrice->stock_time["hours"]}:{$stockPrice->stock_time["minutes"]}:  [{$unclosed_order->id}] GAIN {$stockPrice->code} at {$stockPrice->current_price} | profit: {$current_profit_percent}");
+            Log::debug("{$stockPrice->time->format('H:i:s')}:  [{$unclosed_order->id}] GAIN {$stockPrice->code} at {$stockPrice->current_price} | profit: {$unclosed_order->profit_percent}");
             return;
         }
 
         if (
-            /*($stockPrice->current_price >= $unclosed_order->sell)
-            && $stockPrice->current_price >= $stockPrice->high
-            && ($generalStock->general_start <= $yesterdayGeneral->today_final)*/
-
             ($generalStock->general_start > $yesterdayGeneral->today_final &&
-            $current_general->value < $current_general->high &&
-            $stockPrice->current_price_range > $stockPrice->yesterday_final*1.03) ||
+                $current_general['value'] < $current_general['high'] &&
+                $stockPrice->current_price_range > $stockPrice->yesterday_final*1.03) ||
 
-            ($current_general->value >= $current_general->high &&
-            $stockPrice->current_price > $unclosed_order->sell)
+            ($current_general['value'] >= $current_general['high'] &&
+                $stockPrice->current_price > $unclosed_order->sell)
 
         ) {
 
             $unclosed_order->close_deal($stockPrice);
 
-            Log::debug("{$stockPrice->stock_time["hours"]}:{$stockPrice->stock_time["minutes"]}:  [{$unclosed_order->id}] PROFIT LOSS {$stockPrice->code} at {$stockPrice->current_price} | profit: {$current_profit_percent}");
+            Log::debug("{$stockPrice->time->format('H:i:s')}:  [{$unclosed_order->id}] PROFIT LOSS {$stockPrice->code} at {$stockPrice->current_price} | profit: {$unclosed_order->profit_percent}");
             return;
         }
 
@@ -740,11 +728,200 @@ class Crawler
         //close all remain orders
         if ($stockPrice->stock_time["hours"] == 12 && $stockPrice->stock_time["minutes"] >= 30 || $stockPrice->stock_time["hours"] > 12) {
             $unclosed_order->close_deal($stockPrice);
-            Log::debug("{$stockPrice->stock_time["hours"]}:{$stockPrice->stock_time["minutes"]}:  [{$unclosed_order->id}] CLEAN {$stockPrice->code} at {$stockPrice->current_price} | profit: {$current_profit_percent}");
+            Log::debug("{$stockPrice->time->format('H:i:s')}:  [{$unclosed_order->id}] CLEAN {$stockPrice->code} at {$stockPrice->current_price} | profit: {$unclosed_order->profit_percent}");
             return;
         }
     }
 
+
+    public static function getCurrentGeneralPrice($tlong = null){
+
+        if(!$tlong) $tlong = time()*1000;
+
+        $date = new DateTime();
+        $date->setTimestamp($tlong/1000);
+
+        $current_general = $general = Redis::hgetall("General:realtime#{$date->format("YmdHi")}");;
+
+        if(!$current_general) {
+
+            $current_general = GeneralPrice::where("date", $date->format("Y-m-d"))->where("tlong", "<=", $tlong)->orderByDesc("tlong")->first();
+            if($current_general) {
+                $current_general = $current_general->toArray();
+                Redis::hmset("General:realtime#{$date->format("YmdHi")}", $current_general);
+            }
+        }
+
+        return $current_general;
+    }
+
+    /**
+     * @return float
+     */
+    public static function getGeneralStart($filter_date){
+        $general_start = (float) Redis::get("General:open_today");
+        if(!$general_start) {
+            $stock = GeneralStock::where("date", $filter_date)->first();
+            if($stock){
+                $general_start = $stock->general_start;
+                Redis::set("General:open_today", $general_start);
+            }
+
+        }
+
+        return $general_start;
+    }
+
+    /**
+     * @return float
+     */
+    public static function getYesterdayFinal($filter_date){
+        $y = (float) Redis::get("General:yesterday_final");
+        if(!$y) {
+            $stock = GeneralStock::where("date", self::previousDay($filter_date))->first();
+            if($stock){
+                $y = $stock->today_final;
+                Redis::set("General:yesterday_final", $y);
+            }
+
+        }
+
+        return $y;
+    }
+
+    public static function get5MinsStockTrend(StockPrice $stockPrice){
+
+        $trend = Redis::get("Stock:trend#{$stockPrice->code}*{$stockPrice->time->format("YmdHi")}");
+
+        if(!$trend){
+            $query = DB::select("SELECT IF(s1.best_ask_price > (SELECT best_ask_price from stock_prices s2 WHERE s1.date = s2.date AND s1.code = s2.code AND s1.tlong - s2.tlong >= 300000 ORDER BY s2.tlong DESC limit 1), 'UP', 'DOWN') as trend
+FROM `stock_prices` s1
+WHERE s1.date = '{$stockPrice->date}' AND s1.tlong <= {$stockPrice->tlong} AND code = {$stockPrice->code}
+ORDER BY `tlong` DESC LIMIT 1");
+            $trend = $query[0]->trend;
+            Redis::set("Stock:trend#{$stockPrice->code}*{$stockPrice->time->format("YmdHi")}", $trend);
+        }
+
+        return $trend;
+    }
+
+    public static function getGeneralTrend(StockPrice $stockPrice, $minute = 5){
+        $trend = Redis::get("General:trend#{$stockPrice->time->format("YmdHi")}");
+
+        if(!$trend){
+            $milliseconds = $minute*60*1000;
+            $general_trend = DB::select("SELECT DATE_FORMAT(FROM_UNIXTIME(s1.tlong/1000), '%H:%i:%s') as time,  IF(s1.value > (SELECT value from general_prices s2 WHERE s1.date = s2.date AND s1.tlong - s2.tlong >= {$milliseconds} ORDER BY s2.tlong DESC limit 1), 'UP', 'DOWN') as trend
+FROM `general_prices` s1
+WHERE s1.date = '{$stockPrice->date}' AND s1.tlong <= {$stockPrice->tlong}
+ORDER BY `time` DESC LIMIT 1");
+            if($general_trend){
+                Redis::set("General:trend#{$stockPrice->time->format("YmdHi")}", $general_trend[0]->trend, "EX", 600);
+            }
+
+        }
+
+        return $trend;
+    }
+
+
+    public static function getDL0Stocks($filter_date){
+        if (!$filter_date) {
+            $filter_date = date("Y-m-d");
+        }
+
+        $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
+            ->addSelect("dl.code")
+            ->addSelect("stocks.type")
+            ->where("dl.final", "<", 200)
+            ->where("dl.final", ">", 10)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->whereIn("dl.date", [
+                $filter_date,
+                self::previousDay($filter_date),
+                self::previousDay(self::previousDay($filter_date)),
+            ])
+            ->groupBy(["dl.code", "stocks.type"])
+            ->orderByDesc("dl.date")
+            ->get();
+
+        Redis::del("Stock:DL0");
+        foreach ($stocks as $stock){
+            Redis::lpush("Stock:DL0", $stock->code);
+        }
+
+        return $stocks;
+    }
+
+
+    public static function getDL1Stocks($filter_date){
+        if (!$filter_date) {
+            $filter_date = date("Y-m-d");
+        }
+
+        $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
+            ->addSelect("dl.code")
+            ->addSelect("stocks.type")
+            ->where("dl.final", ">=", 10)
+            ->where("dl.final", "<=", 200)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->groupBy(["dl.code", "stocks.type"])
+            ->orderByDesc("dl.date")
+            ->where("dl.date", $filter_date)->get();
+
+        Redis::del("Stock:DL1");
+        foreach ($stocks as $stock){
+            Redis::lpush("Stock:DL1", $stock->code);
+        }
+
+        return $stocks;
+    }
+
+    public static function getDL0StocksCode($filter_date = null){
+        if(!$filter_date) $filter_date = date("Y-m-d");
+        $dl0 = Redis::lrange("Stock:DL0", 0, -1);
+        if(!$dl0){
+            Log::debug("No dl0 in redis. retrieving from db");
+            $stocks = self::getDL0Stocks($filter_date);
+
+            foreach ($stocks as $stock){
+                $dl0[] = $stock->code;
+                Redis::lpush("Stock:DL0", $stock->code);
+            }
+        }
+
+        return $dl0;
+    }
+
+    public static function getDL1StocksCode($filter_date = null)
+    {
+        if (!$filter_date) {
+            $filter_date = date("Y-m-d");
+        }
+
+        $dl1 = Redis::lrange("Stock:DL1", 0, -1);
+
+        if(!$dl1){
+            Log::debug("No dl1 in redis. retrieving from db");
+            $stocks =  self::getDL1Stocks($filter_date);
+
+            foreach ($stocks as $stock){
+                $dl0[] = $stock->code;
+                Redis::lpush("Stock:DL1", $stock->code);
+            }
+        }
+
+        return $dl1;
+
+
+    }
+
+    public static function loadGeneralPrices($filter_date = null){
+        if(!$filter_date) $filter_date = date("Y-m-d");
+        $general_realtime = GeneralPrice::where("date", $filter_date)->orderBy("tlong")->get();
+        foreach ($general_realtime as $generalPrice){
+            Redis::hmset("General:realtime#{$generalPrice->time->format("YmdHi")}", $generalPrice->toArray());
+        }
+    }
+
+
 }
-
-

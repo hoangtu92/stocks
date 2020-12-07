@@ -2,14 +2,20 @@
 
 namespace App\Console;
 
-use App\Crawler\Crawler;
-use App\Crawler\RealTime\RealtimeDL0;
-use App\Crawler\RealTime\RealtimeGeneral;
-use App\Crawler\RealTime\RealTimeDL1;
+
+use App\Crawler\StockHelper;
+use App\Jobs\Analyze\AnalyzeGeneral;
+use App\Jobs\Crawl\CrawlAgent;
+use App\Jobs\Crawl\CrawlARAV;
+use App\Jobs\Crawl\CrawlDL;
+use App\Jobs\Crawl\CrawlHoliday;
+use App\Jobs\Crawl\CrawlLargeTrade;
+use App\Jobs\Crawl\CrawlRealtimeGeneral;
+use App\Jobs\Crawl\CrawlRealtimeStock;
 use App\StockOrder;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class Kernel extends ConsoleKernel
 {
@@ -26,7 +32,7 @@ class Kernel extends ConsoleKernel
     /**
      * Define the application's command schedule.
      *
-     * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
+     * @param \Illuminate\Console\Scheduling\Schedule $schedule
      * @return void
      */
     protected function schedule(Schedule $schedule)
@@ -44,54 +50,52 @@ class Kernel extends ConsoleKernel
         })->dailyAt("14:30");*/
 
         #Log::info("Every minute run");
-        $crawler = new Crawler();
-        $holiday = $crawler->getHoliday();
 
+
+        $schedule->call(function () {
+            Redis::set("is_holiday", StockHelper::isHoliday());
+        })->name("is_holiday_today")
+            ->dailyAt("00:01");
 
         /**
          * Crawl realtime data
          */
-        $schedule->call(new RealtimeGeneral)->name("get_general_realtime")
+
+        $schedule->call(function (){CrawlRealtimeGeneral::dispatchNow();})
+           ->name("get_realtime_general")
+           ->weekdays()
+           ->when(function () {
+               return !(bool)Redis::get("is_holiday");
+           })
+            ->everyMinute()
+            ->between("9:00", "13:35")
+            ->withoutOverlapping()
+           ->runInBackground();
+
+        $schedule->call(function (){CrawlRealtimeStock::dispatchNow();})
+            ->name("get_realtime_stock")
             ->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
             })
             ->everyMinute()
             ->between("9:00", "13:30")
-            ->runInBackground()
-            ->withoutOverlapping();
-            //->emailOutputOnFailure('hoangtu92@live.com');
-
-        /**
-         * Crawl dl 1 real time
-         */
-        $schedule->call(new RealTimeDL1)->name("get_dl_1_realtime")
-            ->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
-            })
-            ->everyMinute()
-            ->between("9:00", "13:30")
-            ->runInBackground()
-            ->withoutOverlapping();
-            //->emailOutputOnFailure('hoangtu92@live.com');
-
+            ->withoutOverlapping()
+            ->runInBackground();
 
         /**
          * Crawl dl0 real time
          */
-        $schedule->call(new RealtimeDL0)->name("get_dl_0_realtime_xxx")
+        $schedule->job(new AnalyzeGeneral, "high")
+            ->name("get_previous_general")
             ->weekdays()
-            ->when(function () use ($holiday) {
-                #Log::debug("Is not holiday: ".!in_array(date("Y-m-d"), $holiday));
-                return !in_array(date("Y-m-d"), $holiday);
-            })
             ->everyMinute()
-            ->between("9:01", "13:30")
+            ->between("9:05", "13:25")
             ->runInBackground()
-            ->withoutOverlapping();
-        //->emailOutputOnFailure('hoangtu92@live.com');
-
+            ->withoutOverlapping()
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            });
 
 
         /**
@@ -99,80 +103,60 @@ class Kernel extends ConsoleKernel
          */
         $schedule->call(function () {
             $orders = StockOrder::where("closed", false)->get();
-
-            foreach ($orders as $order){
+            foreach ($orders as $order) {
                 $order->close_deal();
             }
-        })->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
-            })
-            ->at("13:08")
-            ->runInBackground();
+        })->weekdays()->at("13:08")
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            });
 
 
         /**
          * Crawl dl data
          */
-        $schedule->call(function () {
-            file_get_contents(route('crawl_dl'));
-        })->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
-            })
+        $schedule->job(new CrawlDL, "high")
+            ->weekdays()
             ->at("17:05")
-            ->runInBackground();
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            });
 
         /**
          * Crawl arav data
          */
-        $schedule->call(function () {
-            file_get_contents(route('crawl_arav', ['date' => date("Y-m-d")]));
-        })->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
-            })
+        $schedule->job(new CrawlARAV, "high")
+            ->weekdays()
             ->at("17:10")
-            ->runInBackground();
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            });
 
         /**
          * Crawl xz and agency
          */
-        $schedule->call(function () {
-            file_get_contents(route('crawl_xz'));
-            file_get_contents(route('crawl_agency'));
-        })->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
-            })
+        $schedule->job(new CrawlLargeTrade, "high")
+            ->weekdays()
             ->at("18:10")
-            ->runInBackground();
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            });
 
 
         /**
          * Re crawl agency
          */
-        $schedule->call(function (){
-            file_get_contents(route("re_crawl_agency"));
-        })->weekdays()
-            ->when(function () use ($holiday) {
-                return !in_array(date("Y-m-d"), $holiday);
-            })
-            ->everyMinute()
-            ->between("18:30", "19:00")
-            ->runInBackground();
-
+        $schedule->job(new CrawlAgent, "high")
+            ->weekdays()
+            ->at("18:10")
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            });
 
         /**
          * Crawl holiday
          */
-        $schedule->call(function (){
-            file_get_contents(route('crawl_holiday'));
-        })->name("holiday")
-            ->weekdays()
-            ->yearly()
-            ->runInBackground();
-
+        $schedule->job(new CrawlHoliday, "high")->name("holiday")->weekdays()->yearly();
 
     }
 
@@ -183,7 +167,7 @@ class Kernel extends ConsoleKernel
      */
     protected function commands()
     {
-        $this->load(__DIR__.'/Commands');
+        $this->load(__DIR__ . '/Commands');
 
         require base_path('routes/console.php');
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Crawler\Crawler;
+use App\Crawler\StockHelper;
 use App\FailedCrawl;
 use App\GeneralStock;
 use App\Holiday;
@@ -44,9 +45,7 @@ class FrontController extends Controller
             $filter_date = $this->previousDay($filter_date);
         }
 
-        $crawler = new Crawler();
-
-        $data = $crawler->getStockData($filter_date);
+        $data = StockHelper::getStockData($filter_date);
 
         if($data == null){
             return redirect(route("order", ["filter_date" => $this->previousDay($filter_date)]));
@@ -98,10 +97,13 @@ class FrontController extends Controller
 
     }
 
-    public function data($date = null)
+    public function data(Request $request, $date = null)
     {
-        $crawler = new Crawler();
-        $data = $crawler->getStockData($date);
+        if(!$date) $date = $request->filter_date;
+
+        $filter_date = $date;
+
+        $data = StockHelper::getStockData($date);
 
         $header = [
             "date" => "漲停日",
@@ -143,12 +145,16 @@ class FrontController extends Controller
         ];
 
         //$this->toTable($data, $mapping_label);
-        return view("backend.data")->with(compact("data", "header"));
+        return view("backend.data")->with(compact("data", "header", "filter_date"));
 
     }
 
-    public function generalStock($filter_date = null)
+    public function generalStock(Request $request, $filter_date = null)
     {
+
+        if(!$filter_date && $request->filled("date"))
+            $filter_date = $request->date;
+
         $header = [
             "date" => "Date",
             "general_start" => "上市開盤",
@@ -228,6 +234,6 @@ class FrontController extends Controller
 
 
         //$this->toTable($data, $header);
-        return view("backend.general")->with(compact("data", "header"));
+        return view("backend.general")->with(compact("data", "header", "filter_date"));
     }
 }

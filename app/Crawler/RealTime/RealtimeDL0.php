@@ -8,6 +8,7 @@ use App\Crawler\Crawler;
 use App\Crawler\CrawlStockInfoData;
 use App\Crawler\DLExcludeFilter;
 use App\Crawler\DLIncludeFilter;
+use App\Crawler\StockHelper;
 use App\Dl;
 use App\GeneralPrice;
 use App\GeneralStock;
@@ -26,11 +27,7 @@ class RealtimeDL0 extends Crawler
         Log::info("Start dl0 realtime crawl");
 
         $now = new DateTime();
-        $start = new DateTime();
-        $stop = new DateTime();
 
-        $start->setTime(9, 0, 0);
-        $stop->setTime(13, 35, 0);
 
         $filter_date = $now->format("Y-m-d");
 
@@ -40,14 +37,6 @@ class RealtimeDL0 extends Crawler
         //Get DL0 stocks
         $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
             ->select("dl.date")
-            ->addSelect("dl.dl_date")
-            ->addSelect("dl.id")
-            ->addSelect("dl.code")
-            ->addSelect("dl.range")
-            ->addSelect("dl.open")
-            ->addSelect("dl.low")
-            ->addSelect("dl.high")
-            ->addSelect("dl.price_907")
             ->addSelect("stocks.type")
             ->where("dl.final", "<", 170)
             ->whereRaw("dl.agency IS NOT NULL")
@@ -61,72 +50,71 @@ class RealtimeDL0 extends Crawler
             ])
             ->whereIn("dl.code", $includeFilter->stockList)
             ->whereNotIn("dl.code", $excludeFilter->stockList)
+            ->groupBy(["dl.code", "stocks.type"])
             ->get();
 
         #Log::debug(json_encode($stocks));
 
+        $generalStock   = GeneralStock::where( "date", $filter_date )->first();
+        $yesterdayGeneral = GeneralStock::where("date", $this->previousDay($filter_date))->first();
 
-        while ($now >= $start && $now <= $stop) {
-            $this->callback($stocks);
-        }
+        $url = StockHelper::getUrlFromStocks($stocks->toArray());
+        $this->callback($url, $stocks, $generalStock, $yesterdayGeneral);
 
         return true;
     }
 
-    public function callback($stocks)
+    public function callback($url, $stocks,  $generalStock, $yesterdayGeneral)
     {
 
-        $filter_date = date("Y-m-d");
+        $now = new DateTime();
+        $start = new DateTime();
+        $stop = new DateTime();
 
-        //Working time
-        $currentGeneral = GeneralPrice::where("date", $filter_date)->orderBy("tlong", "desc")->first();
-        $previousGeneral = null;
+        $start->setTime(9, 0, 0);
+        $stop->setTime(13, 35, 0);
 
-        if($currentGeneral){
-            $previousGeneral = GeneralPrice::where("date", $filter_date)
-                ->where("tlong", "<=", $currentGeneral->tlong - 300000)
-                ->orderByDesc("tlong")
-                ->first();
+        if($now < $start || $now > $stop){
+            return;
         }
 
-
-        $generalStock   = GeneralStock::where( "date", $filter_date )->first();
-        $yesterdayGeneral = GeneralStock::where("date", $this->previousDay($filter_date))->first();
+        //Working time
 
         # Log::debug(json_encode([$currentGeneral->value, $yesterdayGeneral->today_final]));
 
         //1. general current price > yesterday general final
-        if ($currentGeneral && $currentGeneral->value > $yesterdayGeneral->today_final) {
-
-            //Get realtime price of all stocks
-            $url = $this->getUrlFromStocks($stocks->toArray());
-            $stockInfo = new CrawlStockInfoData($url);
-
-            #Log::debug(json_encode($stockInfo->data));
-
-            /**
-             * Monitor DL0 stocks price
-             */
-            if ($stocks) {
-                //Get realtime stock info of dl 0 stocks
-                foreach ($stocks as $stock) {
-
-                    //Check if current stock has data
-                    if (isset($stockInfo->data[$stock->code])) {
-
-                        $stockPrice = $stockInfo->data[$stock->code];
 
 
-                        $this->monitorDL0($stockPrice, $generalStock, $yesterdayGeneral, $previousGeneral, $currentGeneral);
+        //Get realtime price of all stocks
+
+        $stockInfo = new CrawlStockInfoData($url);
+
+        #Log::debug(json_encode($stockInfo->data));
+
+        /**
+         * Monitor DL0 stocks price
+         */
+        if ($stocks) {
+            //Get realtime stock info of dl 0 stocks
+            foreach ($stocks as $stock) {
+
+                //Check if current stock has data
+                if (isset($stockInfo->data[$stock->code])) {
+
+                    $stockPrice = $stockInfo->data[$stock->code];
 
 
-                    }
+                    StockHelper::monitorDL0($stockPrice, $generalStock, $yesterdayGeneral);
+
+
                 }
-
             }
 
         }
-        return true;
+
+
+
+        $this->callback($url, $stocks, $generalStock, $yesterdayGeneral);
     }
 
 }
