@@ -105,7 +105,7 @@ class TickShortSell0 implements ShouldQueue
 
         //Selling condition
         $price_is_dropping_and_lower_than_yesterday_final = $this->lowest_updated &&
-            (($this->stockPrice->stock_time['hours'] == 9 && $this->stockPrice->stock_time['minutes'] > 5) || $this->stockPrice->stock_time['hours'] > 9) &&
+            (($this->stockPrice->stock_time['hours'] == 9 && $this->stockPrice->stock_time['minutes'] > 10) || $this->stockPrice->stock_time['hours'] > 9) &&
             $this->stockPrice->best_bid_price <= $this->stockPrice->yesterday_final;
 
         //Buy back condition
@@ -132,9 +132,9 @@ class TickShortSell0 implements ShouldQueue
                     if (!$unclosed_order->tlong) {
 
                         //Compare sell price with current ask price. If sell price
-                        if ($unclosed_order->sell >= $this->stockPrice->best_bid_price) {
+                        if ($unclosed_order->sell <= $this->stockPrice->best_bid_price) {
 
-                            if($this->stockPrice->best_ask_price > 0){
+                            if($this->stockPrice->best_bid_price > 0){
                                 //Confirm previous order sold!! Request to close it
                                 $unclosed_order->tlong = $this->stockPrice->tlong;
                                 echo "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   SEL   AT  {$unclosed_order->sell}\n";
@@ -185,7 +185,7 @@ class TickShortSell0 implements ShouldQueue
 
                             #echo "HIGH_RANGE: {$high_range} | LOW_RANGE: {$low_range}\n";
 
-                            if ($time_since_begin > 10 || $time_since_begin < 10 && $time_since_order_confirmed > 1) {
+                            if ($time_since_begin > 10 || $time_since_begin < 10 && $time_since_order_confirmed > 3) {
 
                                 if ( ($this->stock_trend =="UP" && $this->previous_order && $this->previous_order->profit_percent > 0) ||
 
