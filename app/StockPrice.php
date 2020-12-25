@@ -3,11 +3,7 @@
 namespace App;
 
 use App\Crawler\StockHelper;
-use App\Jobs\Trading\BuyBack;
-use App\Jobs\Trading\BuyBackParallel;
-use App\Jobs\Trading\BuyBackStragedy2;
-use App\Jobs\Trading\ShortSell0;
-use App\Jobs\Trading\ShortSell1;
+use App\Jobs\Trading\TickShortSell0;
 use App\Jobs\Update\UpdateDl;
 use DateTime;
 use Illuminate\Database\Eloquent\Model;
@@ -27,7 +23,8 @@ class StockPrice extends Model
         'yesterday_final' => 'float',
         'high' => 'float',
         'low' => 'float',
-        'latest_trade_price' => 'float'
+        'latest_trade_price' => 'float',
+        'average_price' => 'float'
     ];
     public $fillable = [
         "id",
@@ -39,6 +36,7 @@ class StockPrice extends Model
         "best_bid_volume",
         "best_ask_price",
         "best_ask_volume",
+        "average_price",
         "ps",
         "pz",
         "open",
@@ -68,8 +66,9 @@ class StockPrice extends Model
              */
 
             if($stockPrice->current_price > 0){
+                UpdateDl::dispatchNow($stockPrice);
 
-                $dl0 = StockHelper::getDL0StocksCode($stockPrice->date);
+                /*$dl0 = StockHelper::getDL0StocksCode($stockPrice->date);
                 $dl1 = StockHelper::getDL1StocksCode($stockPrice->date);
                 //Redis::rawCommand("lpos", "xtest", "12")
 
@@ -77,22 +76,16 @@ class StockPrice extends Model
                 if($stockPrice->stock_time['hours'] < 12 || ($stockPrice->stock_time['hours'] == 12 && $stockPrice->stock_time['minutes'] <= 30)){
 
                     if(in_array($stockPrice->code, $dl0)){
-                        ShortSell0::dispatchNow($stockPrice);
+                        #TickShortSell0::dispatchNow($stockPrice);
                     }
                 }
 
                 //Sell DL1 before 09:07am
                 if($stockPrice->stock_time['hours'] == 9 && $stockPrice->stock_time['minutes'] <= 7){
-
                     if(in_array($stockPrice->code, $dl1)){
-                        UpdateDl::dispatchNow($stockPrice);
-                        ShortSell1::dispatchNow($stockPrice);
+                        #ShortSell1::dispatchNow($stockPrice);
                     }
-                }
-
-                if($stockPrice->stock_time['hours'] >= 13){
-                    BuyBackParallel::dispatchNow($stockPrice);
-                }
+                }*/
 
             }
 
@@ -106,7 +99,7 @@ class StockPrice extends Model
      * @return mixed
      */
     public function getCurrentPriceAttribute(){
-        return $this->latest_trade_price > 0 ? $this->latest_trade_price : $this->best_ask_price;
+        return $this->best_ask_price;
     }
 
     /**

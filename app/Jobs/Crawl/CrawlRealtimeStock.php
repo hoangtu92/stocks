@@ -162,10 +162,7 @@ class CrawlRealtimeStock implements ShouldQueue
 
             }
         }
-        else{
-            sleep(2);
-        }
-        sleep(3);
+
 
         return $this->callback($url);
 

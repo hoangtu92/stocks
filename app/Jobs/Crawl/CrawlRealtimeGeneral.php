@@ -83,11 +83,6 @@ class CrawlRealtimeGeneral implements ShouldQueue
             }
 
         }
-        else{
-            //Sleep for 2 seconds before running next crawl
-            sleep(2);
-        }
-        sleep(3);
 
         $this->callback();
     }

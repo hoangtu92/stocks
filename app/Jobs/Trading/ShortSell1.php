@@ -17,6 +17,7 @@ class ShortSell1 implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $stockPrice;
+    protected $stock_trend;
 
     /**
      * Create a new job instance.
@@ -27,6 +28,7 @@ class ShortSell1 implements ShouldQueue
     {
         //
         $this->stockPrice = $stockPrice;
+        $this->stock_trend = StockHelper::get5MinsStockTrend($this->stockPrice);
 
     }
 
@@ -51,13 +53,6 @@ class ShortSell1 implements ShouldQueue
             if (!is_numeric($data->place_order)) {
                 if ($data->place_order == '等拉高') {
 
-                    $last_2_mins = StockPrice::where("code", $this->stockPrice->code)
-                        ->where("tlong", "<", $this->stockPrice->tlong)
-                        ->where("date", $this->stockPrice->date)
-                        ->where("tlong", "<=", $this->stockPrice->tlong - 150000)
-                        ->orderBy("tlong", "desc")
-                        ->first();
-
                     //Wait a bit and Short selling when meet condition
                     //if price still going up even over the AK suggested price, don’t sell yet. Pls wait until current price drop to  < ‘h’/1.05
                     if (($this->stockPrice->high >= $data->wail_until && $this->stockPrice->current_price < $this->stockPrice->high / 1.05)
@@ -67,7 +62,7 @@ class ShortSell1 implements ShouldQueue
                         || ($this->stockPrice->high >= $data->agency_forecast
                             //It is dropping
                             && $this->stockPrice->current_price < $this->stockPrice->high / 1.05
-                            && ($last_2_mins && $last_2_mins->current_price > $this->stockPrice->current_price)
+                            && ($this->stock_trend == "DOWN")
                         )) {
 
                         //Short selling now

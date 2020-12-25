@@ -68,7 +68,7 @@ class StockController extends Controller
         }
 
         //Log::debug("Some one request to crawl agency". json_encode($_REQUEST));
-        //CrawlAgent::dispatchNow($request->date);
+        CrawlAgent::dispatchNow($request->date);
 
         return Redirect::back();
     }

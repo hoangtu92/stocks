@@ -3,6 +3,7 @@
 namespace App;
 
 use Backpack\Settings\app\Models\Setting;
+use DateTime;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
@@ -41,27 +42,77 @@ class StockOrder extends Model
     const DL2 = "dl2";
 
 
+    public function stock(){
+        return $this->belongsTo("\App\Stock", "code", "code");
+    }
+
+    public function getOpenTimeAttribute(){
+        $date = new DateTime();
+        $date->setTimestamp($this->tlong/1000);
+        return $date->format("H:i:s");
+    }
+
+    public function getCloseTimeAttribute(){
+        $date = new DateTime();
+        $date->setTimestamp($this->tlong2/1000);
+        return $date->format("H:i:s");
+    }
+
+    public function getTaxAttribute(){
+        return ($this->sell*$this->qty*1.5);
+    }
+
+    public function getFeeAttribute(){
+        return ($this->sell*$this->qty*1.425) + ($this->buy*$this->qty*1.425);
+    }
+
+    public function getCurrentPriceAttribute(){
+        $now = time()*1000;
+        $stockPrice = StockPrice::where("date", $this->date)
+            ->where("tlong", "<=", $now)
+            ->where("code", $this->code)
+            ->orderByDesc("tlong")
+            ->first();
+
+        return $stockPrice ? $stockPrice->current_price : 0;
+    }
 
     public function getFinalBuyAttribute(){
-        $tax = ($this->attributes["buy"]*0.15)/100;
-        $fee = ($this->attributes["buy"]* 0.1425)/100;
-        return number_format($this->attributes["buy"] + $tax + $fee, 2);
+        $fee = ($this->attributes["buy"]*$this->qty* 1.425);
+        return $this->attributes["buy"]*$this->qty*1000 + $fee;
     }
 
     public function getFinalSellAttribute(){
-        $tax = ($this->attributes["sell"]*0.15)/100;
-        $fee = ($this->attributes["sell"]* 0.1425)/100;
-        return number_format($this->attributes["sell"] - $tax - $fee, 2);
+        $tax = ($this->attributes["sell"]*$this->qty*1.5);
+        $fee = ($this->attributes["sell"]*$this->qty* 1.425);
+        return $this->attributes["sell"]*$this->qty*1000 - $tax - $fee;
     }
 
     public function getProfitAttribute(){
-        return $this->final_buy > 0 ? ($this->final_sell - $this->final_buy)*1000 : 0;
+        return $this->final_buy > 0 ? round($this->final_sell - $this->final_buy, 2) : 0;
     }
-
-
     public function getProfitPercentAttribute(){
-        return $this->final_buy > 0 ? ($this->profit/($this->final_buy*1000))*100 : 0;
+        return $this->final_buy > 0 ? round(($this->profit/$this->final_buy)*100, 2) : 0;
     }
+
+    public function calculateProfit($price){
+        $fee = ($price*$this->qty* 1.425);
+        $final_buy = $price*$this->qty*1000 + $fee;
+        return $final_buy > 0 ? $this->final_sell - $final_buy : 0;
+    }
+
+    public function getCurrentProfitAttribute(){
+        return $this->calculateProfit($this->current_price);
+    }
+
+    public function getCurrentProfitPercentAttribute(){
+        return round(($this->current_profit/($this->current_price*$this->qty*1000))*100, 2);
+    }
+
+
+
+
+
 
 
     /**
@@ -92,87 +143,6 @@ class StockOrder extends Model
         $r         = file_get_contents( $url );
         Log::debug($r);
         return $r;
-    }
-
-    public function close_deal(StockPrice $current_stock_price = null){
-
-        if(!$current_stock_price){
-            $current_stock_price = StockPrice::where("date", $this->date)->where("code", $this->code)->orderByDesc("tlong")->first();
-        }
-
-        $this->closed = true;
-        $this->tlong2 = $current_stock_price->tlong;
-        $this->buy = $current_stock_price->current_price;
-        $this->save();
-
-        if($this->deal_type == self::SHORT_SELL){
-            $this->buy();
-        }
-        else{
-            $this->sell();
-        }
-
-        return $this;
-
-    }
-
-    /**
-     * @param null $stockPrice
-     * @return $this
-     */
-    public function close_deal_arr($stockPrice = null){
-
-        if(!$stockPrice){
-            $stockPrice = Redis::hgetall("Stock:realtime#{$this->code}");
-
-            if(!$stockPrice) {
-                $stockPrice = StockPrice::where("date", $this->date)->where("code", $this->code)->orderByDesc("tlong")->first();
-                if($stockPrice) $stockPrice = $stockPrice->toArray();
-            }
-        }
-
-        $this->closed = true;
-        $this->tlong2 = $stockPrice['tlong'];
-        $this->buy = $stockPrice['current_price'];
-        $this->save();
-
-        if($this->deal_type == self::SHORT_SELL){
-            $this->buy();
-        }
-        else{
-            $this->sell();
-        }
-
-        return $this;
-
-    }
-
-    /**
-     * @param null $stockPrice
-     * @return $this
-     */
-    public function close_deal_parallel($stockPrice = null){
-
-        if(!$stockPrice){
-            $stockPrice = Redis::hgetall("Stock:realtime#{$this->code}");
-
-            if(!$stockPrice) {
-                $stockPrice = StockPrice::where("date", $this->date)->where("code", $this->code)->orderByDesc("tlong")->first();
-                if($stockPrice) $stockPrice = $stockPrice->toArray();
-            }
-        }
-        $this->buy = $stockPrice['current_price'] - 0.4;
-        $this->save();
-
-        if($this->deal_type == self::SHORT_SELL){
-            $this->buy();
-        }
-        else{
-            $this->sell();
-        }
-
-        return $this;
-
     }
 
 

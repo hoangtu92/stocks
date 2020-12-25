@@ -2,6 +2,9 @@
 
 
 use App\Arav;
+use App\Charts\StockChart;
+use App\Charts\Test2Chart;
+use App\Charts\TestChart;
 use App\Crawler\StockHelper;
 use App\GeneralPrice;
 use App\Jobs\Crawl\CrawlAgent;
@@ -11,6 +14,8 @@ use App\Jobs\Crawl\CrawlRealtimeStock;
 use App\Jobs\CrawlYahooPrice;
 use App\Jobs\TestQueue;
 use App\Jobs\TestQueue2;
+use App\StockOrder;
+use App\StockPrice;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
@@ -41,8 +46,6 @@ Route::get('/crawl/xz/{date?}', "StockController@crawlXZ")->name("crawl_xz");
 Route::get("/crawl/reAgency", "StockController@reCrawlAgency")->name("re_crawl_agency");
 
 Route::get("/test/{filter_date?}", "OrderController@test")->name("test");
-Route::get("/place_order/{filter_date?}", "OrderController@place_order");
-Route::get("/place_order_dl0/{filter_date?}", "OrderController@place_order_dl0");
 
 
 Route::post("/update_general_predict", "ActionController@update_general_predict")->name("update_general_predict");
@@ -131,3 +134,50 @@ Route::get("/redis-test", function (){
 });
 
 Route::get("/crawlYahooData", "StockController@crawlYahoo");
+
+Route::get("/stock-data/{date}/{code}", function ($date, $code){
+    $stocks = DB::table("stock_prices")
+        ->addSelect(DB::raw("tlong as date"))
+        ->addSelect(DB::raw("ROUND((best_ask_price + best_bid_price)/2, 2) as value"))
+        ->addSelect("low")
+        ->addSelect("high")
+        ->addSelect("yesterday_final as y")
+        ->where("date", $date)
+        ->where("code", $code)
+        ->orderBy("tlong")->get();
+    return $stocks;
+
+})->name("stock_data");
+
+Route::get("/general-data/{date}", function ($date){
+    $previous_date = StockHelper::previousDay($date);
+    $stocks = DB::table("general_prices")
+        ->addSelect(DB::raw("tlong as date"))
+        ->addSelect("value")
+        ->addSelect(DB::raw("(SELECT today_final FROM general_stocks gs WHERE gs.date = '{$previous_date}') as y"))
+        ->addSelect("low")
+        ->addSelect("high")
+        ->where("date", $date)
+        ->orderBy("tlong")->get();
+    return $stocks;
+})->name("general_data");
+
+
+Route::get('/stock-chart/{date}/{code}', function ($date, $code)
+{
+    return view('chart')->with(compact("date", "code"));
+})->name("stock_chart");
+
+Route::get("/order-data/{date}/{code}", function ($date, $code){
+    $stock_orders = DB::table("stock_orders")
+        ->addSelect("tlong as start")
+        ->addSelect("tlong2 as end")
+        ->addSelect("sell")
+        ->addSelect("buy")
+        ->where("code", $code)
+        ->where("date", $date)
+        ->orderBy("tlong")
+        ->get();
+
+    return $stock_orders;
+})->name("stock_order");

@@ -40,9 +40,9 @@ class GeneralPrice extends Model
 
             $now = new DateTime();
 
-            $check1 = $now->format("H:i") == "09:01";
-            $check2 = $now->format("H:i") == "09:07";
-            $check3 = $now->format("H:i") == "13:30";
+            $check1 = $generalPrice->time->format("H:i") == "09:01";
+            $check2 = $generalPrice->time->format("H:i") == "09:07";
+            $check3 = $generalPrice->time->format("H:i") == "13:35";
 
             if($check1 || $check2 || $check3){
                 UpdateGeneralStock::dispatchNow($generalPrice);

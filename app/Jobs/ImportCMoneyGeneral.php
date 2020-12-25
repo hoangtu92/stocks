@@ -38,7 +38,7 @@ class ImportCMoneyGeneral implements ShouldQueue
     {
         if(isset($this->data->DataPrice)){
             $d = StockHelper::offset_date($this->data->DataPrice[0][0]/1000);
-            $open_price = GeneralPrice::where("date", $d->format("Y-m-d"))->orderBy("tlong")->first();
+            GeneralPrice::where("date", $d->format("Y-m-d"))->delete();
             foreach ($this->data->DataPrice as $price){
                 /**
                  * 0: timestamp
@@ -48,8 +48,9 @@ class ImportCMoneyGeneral implements ShouldQueue
                  * 4: sold price
                  */
                 $newdate = StockHelper::offset_date($price[0]/1000);
+                $last_price = GeneralPrice::where("date", $newdate->format("Y-m-d"))->where("tlong", "<", $price[0])->orderBy("tlong", "desc")->first();
 
-                if(!$open_price) {
+                if(!$last_price) {
                     $generalPrice = new GeneralPrice([
                         'low' => $price[1],
                         'high' => $price[1],
@@ -61,8 +62,6 @@ class ImportCMoneyGeneral implements ShouldQueue
                 }
                 else{
                     $exists = GeneralPrice::where("date", $newdate->format("Y-m-d"))->where("tlong",  $price[0])->first();
-                    $last_price = GeneralPrice::where("date", $newdate->format("Y-m-d"))->where("tlong", "<", $price[0])->orderBy("tlong", "desc")->first();
-
                     if(!$exists){
 
                         $generalPrice = new GeneralPrice([

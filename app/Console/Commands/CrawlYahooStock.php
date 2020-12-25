@@ -54,6 +54,8 @@ class CrawlYahooStock extends Command
         else{
             $filter_date = date("Y-m-d");
 
+            StockPrice::where("date", $filter_date)->delete();
+
             $stocks = DB::table("dl")
                 ->select("code")
                 ->whereRaw("dl.agency IS NOT NULL")

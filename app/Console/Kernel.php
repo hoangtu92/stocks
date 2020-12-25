@@ -86,7 +86,7 @@ class Kernel extends ConsoleKernel
         /**
          * Crawl dl0 real time
          */
-        $schedule->job(new AnalyzeGeneral, "high")
+        /*$schedule->job(new AnalyzeGeneral, "high")
             ->name("get_previous_general")
             ->weekdays()
             ->everyMinute()
@@ -95,7 +95,7 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->when(function () {
                 return !(bool)Redis::get("is_holiday");
-            });
+            });*/
 
 
         /**
@@ -146,9 +146,11 @@ class Kernel extends ConsoleKernel
         /**
          * Re crawl agency
          */
-        $schedule->job(new CrawlAgent, "high")
+        $schedule->call(function (){
+            file_get_contents(route("re_crawl_agency"));
+        })
             ->weekdays()
-            ->at("18:10")
+            ->between("18:10", "21:30")
             ->when(function () {
                 return !(bool)Redis::get("is_holiday");
             });

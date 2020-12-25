@@ -22,6 +22,7 @@ class CrawlAgent implements ShouldQueue
 
     public int $timeout = 0;
     public int $tries = 0;
+    public int $backoff = 300;
     protected Client $client;
     protected string $filter_date;
     protected array $agent_data = [];
@@ -85,7 +86,7 @@ class CrawlAgent implements ShouldQueue
      */
     public function handle()
     {
-        Log::info("Crawling Agency data for ".$this->filter_date);
+        #Log::info("Crawling Agency data for ".$this->filter_date);
         //
         $agents = Agent::all("name")->toArray();
         $agents = array_reduce($agents, function ($t, $e){
@@ -120,28 +121,18 @@ class CrawlAgent implements ShouldQueue
         $crawler = $this->client->request("GET", $url);
         $table = $crawler->filter("table.tb-stock")->last();
 
-
-        $table->filter("tr")->each(function ($tr, $i){
-            if($i > 0 && $i <= 5){
-                $this->agent_data[$i] = [];
-                $tr->filter("td")->each(function ($td, $j) use ($i) {
-                    if(in_array($j, [5,8,9])){
-                        $this->agent_data[$i][$j] = $td->text();
-
-                    }
-                });
-            }
-        });
-
-        /**
-         * {
-        "1": {
-            "5": "摩根大通",
-            "8": "4,413",
-            "9": "608.27"
-            },
+        if($table){
+            $table->filter("tr")->each(function ($tr, $i){
+                if($i > 0 && $i <= 5){
+                    $this->agent_data[$i] = [];
+                    $tr->filter("td")->each(function ($td, $j) use ($i) {
+                        if(in_array($j, [5,8,9])){
+                            $this->agent_data[$i][$j] = $td->text();
+                        }
+                    });
+                }
+            });
         }
-         */
 
         if(count($this->agent_data) == 0){
 
@@ -153,7 +144,7 @@ class CrawlAgent implements ShouldQueue
 
 
         $this->agent_data = array_filter($this->agent_data, function ($e) use ($filter) {
-            return is_array($e) && in_array($e[5], $filter);
+            return is_array($e) && isset($e[5]) && in_array($e[5], $filter);
         });
 
         if(count($this->agent_data) == 0){
@@ -179,6 +170,17 @@ class CrawlAgent implements ShouldQueue
 
 
         return $this->agent_data;
+
+        /**
+         * {
+        "1": {
+            "5": "摩根大通",
+            "8": "4,413",
+            "9": "608.27"
+            },
+        }
+         */
+
     }
 
     public function log_file($dir, $filename, $content){
