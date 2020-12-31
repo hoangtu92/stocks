@@ -4,8 +4,6 @@ namespace App\Console;
 
 
 use App\Crawler\StockHelper;
-use App\Jobs\Analyze\AnalyzeGeneral;
-use App\Jobs\Crawl\CrawlAgent;
 use App\Jobs\Crawl\CrawlARAV;
 use App\Jobs\Crawl\CrawlDL;
 use App\Jobs\Crawl\CrawlHoliday;
@@ -15,6 +13,7 @@ use App\Jobs\Crawl\CrawlRealtimeStock;
 use App\StockOrder;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
 class Kernel extends ConsoleKernel
@@ -39,15 +38,15 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
 
-        /*$schedule->call(function () {
+        $schedule->call(function () {
             $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
-            Log::debug($r);
-        })->dailyAt("08:30");
+            Log::debug("Vendor Login" .$r);
+        })->dailyAt("09:00");
 
         $schedule->call(function () {
             $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/logout");
-            Log::debug($r);
-        })->dailyAt("14:30");*/
+            Log::debug("Vendor Logout" .$r);
+        })->dailyAt("14:30");
 
         #Log::info("Every minute run");
 
@@ -104,7 +103,7 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             $orders = StockOrder::where("closed", false)->get();
             foreach ($orders as $order) {
-                $order->close_deal();
+                #$order->close_deal();
             }
         })->weekdays()->at("13:08")
             ->when(function () {

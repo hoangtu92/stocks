@@ -674,7 +674,7 @@
 
     Highcharts.setOptions({
         time: {
-            timezoneOffset: -8*60
+            timezoneOffset: -8 * 60
         }
     });
 
@@ -688,15 +688,31 @@
             stockY = data[0]['y'],
             dataLength = data.length,
             i = 0;
-        var stocks_arr = [stockY];
+
+        var high_arr = [stockY], low_arr = [stockY];
+
+        var h = [], l = [];
 
         for (i; i < dataLength; i += 1) {
-            stocks_arr.push(parseFloat(data[i]["value"]));
             stocks[data[i]["date"]] = data[i];
             ohlc.push([
                 data[i]["date"], // the date
-                parseFloat(data[i]["value"]), // open
+                parseFloat(data[i]["value"]), // value
             ]);
+            h.push([
+                data[i]["date"],
+                parseFloat(data[i]["high"]),
+
+            ]);
+
+
+            l.push([
+                data[i]["date"],
+                parseFloat(data[i]["low"])
+            ]);
+            high_arr.push(parseFloat(data[i]["high"]));
+            low_arr.push(parseFloat(data[i]["low"]))
+
 
         }
 
@@ -717,6 +733,7 @@
             }
 
 
+
             var points = [], shapes = [];
 
             var chart = Highcharts.stockChart('container', {
@@ -728,32 +745,7 @@
                     },
 
                 },
-
-                marker0: {
-                    tagName: 'marker',
-                    render: false, // if false it does not render the element to the dom
-                    id: 'arrow_green',
-                    children: [{
-                        tagName: 'path',
-                        d: 'M 10,0 C 0,0 0,10 10,10 C 12.5,7.5 12.5,7.5 20,5 C 12.5,2.5 12.5,2.5 10,0 Z'
-                    }],
-                    markerWidth: 20,
-                    markerHeight: 20,
-                    refX: 20,
-                    refY: 5
-                },
-                marker1: {
-                    children: [{
-                        tagName: 'path',
-                        d: 'M 10,0 C 0,0 0,10 10,10 C 12.5,7.5 12.5,7.5 20,5 C 12.5,2.5 12.5,2.5 10,0 Z'
-                    }],
-                    tagName: 'marker',
-                    id: 'arrow_red',
-                    markerWidth: 20,
-                    markerHeight: 20,
-                    refX: 10,
-                    refY: 10
-                },
+                colors: ['#4a4a4a', '#ff000b', '#2000ff'],
 
                 series: [{
                     type: 'line',
@@ -762,29 +754,60 @@
                     step: !0,
                     data: ohlc,
                     tooltip: {
-                        pointFormatter: function() {
-                            var date  = this.x;
-                            return 'Stock: ' + this.y + "<br>" +
-                                "High: " + stocks[date]['high'] + "<br>" +
-                                "Low: " + stocks[date]['low'];
+                        pointFormatter: function () {
+                            var date = this.x;
+                            return 'Price: ' + this.y;
                         }
                     }
 
-                }, {
-                    type: 'line',
-                    id: 'general',
-                    name: 'General',
-                    data: general_prices,
-                    yAxis: 1,
-                    tooltip: {
-                        pointFormatter: function() {
-                            var date  = this.x;
-                            return 'General: ' + this.y + "<br>" +
-                                "High: " + general[date]['high'] + "<br>" +
-                                "Low: " + general[date]['low'];
+                },
+                    {
+                        type: 'line',
+                        id: 'high',
+                        name: 'High',
+                        dashStyle: 'LongDash',
+                        step: !0,
+                        data: h,
+                        tooltip: {
+                            pointFormatter: function () {
+                                var date = this.x;
+                                return "High: " + stocks[date]['high'];
+                            }
                         }
-                    }
-                }],
+
+                    },
+                    {
+                        type: 'line',
+                        id: 'low',
+                        name: 'Low',
+                        dashStyle: 'LongDash',
+                        step: !0,
+                        data: l,
+                        tooltip: {
+                            pointFormatter: function () {
+                                var date = this.x;
+                                return "Low: " + stocks[date]['low'];
+                            }
+                        }
+
+                    },
+                    {
+                        type: 'line',
+                        id: 'general',
+                        name: 'General',
+                        data: general_prices,
+                        yAxis: 1,
+                        step: !0,
+                        tooltip: {
+                            pointFormatter: function () {
+                                var date = this.x;
+                                return 'General: ' + this.y + "<br>" +
+                                    "High: " + general[date]['high'] + "<br>" +
+                                    "Low: " + general[date]['low'];
+                            }
+                        }
+                    },
+                ],
                 tooltip: {
                     crosshairs: [{
                         width: "1px",
@@ -796,7 +819,7 @@
                 },
                 xAxis: {
                     labels: {
-                        formatter: function() {
+                        formatter: function () {
                             var localNow = new Date(this.value);
                             return localNow.getHours() + ":" + localNow.getMinutes()
                         }
@@ -807,13 +830,13 @@
                         align: 'left'
                     },
                     height: '50%',
-                    min: Math.min(...stocks_arr),
-                    max: Math.max(...stocks_arr),
+                    min: Math.min(...low_arr),
+                    max: Math.max(...high_arr),
                     plotLines: [{
                         value: stockY,
-                        color: "orange",
+                        color: "rgba(32,0,255,0.26)",
                         dashStyle: "Solid",
-                        width: 2,
+                        width: 1,
                         label: {
                             align: "right",
                             text: stockY
@@ -829,9 +852,9 @@
                     max: Math.max(...general_arr),
                     plotLines: [{
                         value: generalY,
-                        color: "orange",
+                        color: "rgba(32,0,255,0.26)",
                         dashStyle: "Solid",
-                        width: 2,
+                        width: 1,
                         label: {
                             align: "right",
                             text: generalY
@@ -973,22 +996,21 @@
                     return t;
                 }, {});
 
-                for(i=0; i < orders.length; i+=1){
+                for (i = 0; i < orders.length; i += 1) {
                     var shapes = {
                         shapes: {
                             type: 'path',
                             points: [points[orders[i]['start']], points[orders[i]['end']]],
                             //markerEnd: 'arrow',
-                            dashstyle: 'shortDash',
-                            stroke: orders[i]['buy'] >= orders[i]['sell'] ? 'red' : 'lime'
+                            //dashStyle: 'shortDash',
+                            strokeWidth: 3,
+                            stroke: orders[i]['buy'] >= orders[i]['sell'] ? 'rgba(255,0,0,1)' : 'rgba(10,255,0,1)'
                         },
                         langKey: "S: " + orders[i]['sell'] + "/B: " + orders[i]['buy']
                     };
 
                     chart.addAnnotation(shapes);
                 }
-
-
 
 
                 console.log(chart)

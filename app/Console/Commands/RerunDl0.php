@@ -2,16 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Crawler\StockHelper;
-use App\Holiday;
 use App\Jobs\Rerun\Dl0;
-use App\Jobs\Trading\TickShortSell0;
-use App\StockOrder;
-use App\StockPrice;
-use DateTime;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+
 
 class RerunDl0 extends Command
 {
@@ -20,7 +14,7 @@ class RerunDl0 extends Command
      *
      * @var string
      */
-    protected $signature = 'rerun:dl0 {filter_date?} {code?}';
+    protected $signature = 'rerun:dl0 {filter_date?} {code?} {async?}';
 
     /**
      * The console command description.
@@ -50,14 +44,18 @@ class RerunDl0 extends Command
     public function handle()
     {
 
-        #Redis::flushall();
-        #Redis::flushall();
+        Redis::flushall();
         $filter_date = $this->argument("filter_date");
         $code = $this->argument("code");
         if (!$filter_date)
             $filter_date = date("Y-m-d");
 
-        Dl0::dispatch($filter_date, $code)->onQueue("high");
+        if($this->argument('async') == 'async'){
+            Dl0::dispatch($filter_date, 0, $code)->onQueue("high");
+        }
+        else{
+            Dl0::dispatchNow($filter_date, 1, $code);
+        }
 
     }
 }

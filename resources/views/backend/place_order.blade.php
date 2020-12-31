@@ -120,7 +120,7 @@
 
     <script>
         setInterval(function () {
-            window.location.reload();
+            //window.location.reload();
         }, 120000);
 
         window.onload = function(){

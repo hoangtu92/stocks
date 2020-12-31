@@ -52,6 +52,8 @@ class CrawlRealtimeStock implements ShouldQueue
 
         $filter_date = date("Y-m-d");
 
+        Redis::del("Stock:DL0");
+
 
         $list2 = DB::table("dl")->join("stocks", "stocks.code", "=", "dl.code")
             ->addSelect("dl.code")
@@ -86,11 +88,6 @@ class CrawlRealtimeStock implements ShouldQueue
 
         $stocks = array_merge($list1, $list2);
 
-        Redis::del("Stock:DL0");
-
-        foreach ($stocks as $st){
-            Redis::lpush("Stock:DL0", $st->code);
-        }
 
         $url = StockHelper::getUrlFromStocks($stocks);
 
@@ -128,6 +125,9 @@ class CrawlRealtimeStock implements ShouldQueue
                 $pz = isset($stock->pz) ? StockHelper::format_number($stock->pz) : 0;
                 $ps = isset($stock->ps) ? StockHelper::format_number($stock->ps) : 0;
 
+                //"ip":"0", //1: Trending down, 2: Trending up, 4: Suspend closing, 5: Suspend opening
+                $ip = $stock->ip;
+
                 $open = StockHelper::format_number($stock->o);
                 $high = StockHelper::format_number($stock->h);
                 $low = StockHelper::format_number($stock->l);
@@ -145,6 +145,7 @@ class CrawlRealtimeStock implements ShouldQueue
                     'best_ask_volume' => StockHelper::format_number($best_ask_volume[0]),
                     'ps' => $ps,
                     'pz' => $pz,
+                    'ip' => $ip,
                     'open' => $open,
                     'high' => $high,
                     'low' => $low,

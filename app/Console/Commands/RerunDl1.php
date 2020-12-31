@@ -51,7 +51,7 @@ class RerunDl1 extends Command
         if (!$filter_date)
             $filter_date = date("Y-m-d");
 
-        Dl1::dispatch($filter_date, $code)->onQueue("high");
+        Dl1::dispatchNow($filter_date, $code);
     }
 
 }

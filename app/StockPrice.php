@@ -3,7 +3,7 @@
 namespace App;
 
 use App\Crawler\StockHelper;
-use App\Jobs\Trading\TickShortSell0;
+use App\Jobs\Trading\DL0_Strategy_1;
 use App\Jobs\Update\UpdateDl;
 use DateTime;
 use Illuminate\Database\Eloquent\Model;
@@ -16,7 +16,7 @@ class StockPrice extends Model
     protected $appends = ["current_time"];
     public $incrementing = true;
     public $timestamps = true;
-    public $hidden = ["created_at", "updated_at", "trade_volume", "accumulate_trade_volume", "best_bid_volume", "best_ask_volume", "ps", "pz"];
+    public $hidden = ["created_at", "updated_at", "trade_volume", "accumulate_trade_volume", "best_bid_volume", "best_ask_volume", "ps", "pz", "ip"];
     protected $casts = [
         'best_ask_price'  =>  'float',
         'best_bid_price'       =>  'float',
@@ -39,6 +39,7 @@ class StockPrice extends Model
         "average_price",
         "ps",
         "pz",
+        "ip",
         "open",
         "high",
         "low",
@@ -56,7 +57,11 @@ class StockPrice extends Model
         static::created(function (StockPrice $stockPrice){
             //Cache current stock info data to redis
             #Redis::del("Stock:realtime#{$stockPrice->code}");
-            Redis::hmset("Stock:realtime#{$stockPrice->code}", $stockPrice->toArray());
+            $d = $stockPrice->time->format("Y-m-d H:i");
+            $date = date_create_from_format("Y-m-d H:i", $d);
+
+            Redis::hmset("Stock:previousPrice#{$stockPrice->code}", $stockPrice->toArray());
+            Redis::hmset("Stock:prices#{$stockPrice->code}|{$date->getTimestamp()}", $stockPrice->toArray());
             //Update dl data
 
             #return $stockPrice;
@@ -66,30 +71,27 @@ class StockPrice extends Model
              */
 
             if($stockPrice->current_price > 0){
-                UpdateDl::dispatchNow($stockPrice);
 
-                /*$dl0 = StockHelper::getDL0StocksCode($stockPrice->date);
-                $dl1 = StockHelper::getDL1StocksCode($stockPrice->date);
+
+                $dl0 = StockHelper::getDL0StocksCode($stockPrice->date);
+                #$dl1 = StockHelper::getDL1StocksCode($stockPrice->date);
                 //Redis::rawCommand("lpos", "xtest", "12")
 
-                //Sell DL0 between 09:00 and 12:30
-                if($stockPrice->stock_time['hours'] < 12 || ($stockPrice->stock_time['hours'] == 12 && $stockPrice->stock_time['minutes'] <= 30)){
+                UpdateDl::dispatch($stockPrice)->onQueue("medium");
 
-                    if(in_array($stockPrice->code, $dl0)){
-                        #TickShortSell0::dispatchNow($stockPrice);
-                    }
+                //Sell DL0 between 09:00 and 12:30
+                if(in_array($stockPrice->code, $dl0)){
+                    DL0_Strategy_1::dispatchNow($stockPrice);
                 }
 
                 //Sell DL1 before 09:07am
-                if($stockPrice->stock_time['hours'] == 9 && $stockPrice->stock_time['minutes'] <= 7){
+                /*if($stockPrice->stock_time['hours'] == 9 && $stockPrice->stock_time['minutes'] <= 7){
                     if(in_array($stockPrice->code, $dl1)){
-                        #ShortSell1::dispatchNow($stockPrice);
+                        ShortSell1::dispatchNow($stockPrice);
                     }
                 }*/
 
             }
-
-
 
 
         });

@@ -38,15 +38,12 @@ class GeneralPrice extends Model
         static::created(function (GeneralPrice $generalPrice){
             Redis::hmset("General:realtime", $generalPrice->toArray());
 
-            $now = new DateTime();
+            $time = getdate($generalPrice->tlong / 1000);
 
-            $check1 = $generalPrice->time->format("H:i") == "09:01";
-            $check2 = $generalPrice->time->format("H:i") == "09:07";
-            $check3 = $generalPrice->time->format("H:i") == "13:35";
-
-            if($check1 || $check2 || $check3){
+            if ( ($time["hours"] == 9 && ($time["minutes"] == 1 || $time["minutes"] == 7)) || ($time["hours"] == 13 && $time["minutes"] >= 30)) {
                 UpdateGeneralStock::dispatchNow($generalPrice);
             }
+
         });
     }
 

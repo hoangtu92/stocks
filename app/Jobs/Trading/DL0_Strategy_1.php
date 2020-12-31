@@ -12,8 +12,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Redis;
- 
-class TickShortSell1 implements ShouldQueue
+
+class DL0_Strategy_1 implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -70,15 +70,15 @@ class TickShortSell1 implements ShouldQueue
         # $this->stock_trend  = StockHelper::getStockTrend($this->stockPrice, 5);
         $this->unclosed_orders = StockOrder::where("code", $this->stockPrice->code)
             ->where("closed", "=", false)
-            ->where("order_type", "=", StockOrder::DL1)
+            ->where("order_type", "=", StockOrder::DL0)
             ->where("deal_type", "=", StockOrder::SHORT_SELL)
             ->where("date", $this->stockPrice->date)
-            ->orderBy("tlong")
+            ->orderBy("tlong", "asc")
             ->get();
 
         $this->previous_order = StockOrder::where("code", $this->stockPrice->code)
             ->where("closed", "=", true)
-            ->where("order_type", "=", StockOrder::DL1)
+            ->where("order_type", "=", StockOrder::DL0)
             ->where("deal_type", "=", StockOrder::SHORT_SELL)
             ->where("date", $this->stockPrice->date)
             ->orderByDesc("tlong2")
@@ -90,9 +90,9 @@ class TickShortSell1 implements ShouldQueue
         $p5m = $stockDate->getTimestamp() - (60*5);
         $p20m = $stockDate->getTimestamp() - (60*20);
 
-        $this->previous_1_mins_price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}|{$p1m}");
-        $this->previous_5_mins_price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}|{$p5m}");
-        $this->previous_20_mins_price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}|{$p20m}");
+        //$this->previous_1_mins_price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}|{$p1m}");
+        //$this->previous_5_mins_price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}|{$p5m}");
+        //$this->previous_20_mins_price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}|{$p20m}");
 
         $this->previous_price = Redis::hgetall("Stock:previousPrice#{$this->stockPrice->code}");
         $this->general_start = StockHelper::getGeneralStart($this->stockPrice->date);
@@ -100,8 +100,8 @@ class TickShortSell1 implements ShouldQueue
 
         $this->lowest_updated = $this->previous_price && $this->previous_price['low'] - $this->stockPrice->low;
         $this->highest_updated = $this->previous_price && $this->previous_price['high'] < $this->stockPrice->high;
-        $this->lowest_hasnot_update_for_over_1_mins = $this->previous_1_mins_price && $this->previous_1_mins_price['low'] == $this->stockPrice->low;
-        $this->highest_hasnot_update_for_over_20_mins = $this->previous_20_mins_price && $this->previous_20_mins_price['high'] == $this->stockPrice->high;
+        //$this->lowest_hasnot_update_for_over_1_mins = $this->previous_1_mins_price && $this->previous_1_mins_price['low'] == $this->stockPrice->low;
+        //$this->highest_hasnot_update_for_over_20_mins = $this->previous_20_mins_price && $this->previous_20_mins_price['high'] == $this->stockPrice->high;
         $this->stock_trend = $this->previous_5_mins_price ? $this->previous_5_mins_price['best_ask_price'] > $this->stockPrice->best_ask_price ? "DOWN" : "UP" : false;
 
         $this->high_range = (($this->stockPrice->high - $this->stockPrice->yesterday_final)/$this->stockPrice->yesterday_final)*100;
@@ -162,36 +162,19 @@ class TickShortSell1 implements ShouldQueue
         $general_highest_updated = $this->previous_general && $this->previous_general['high'] < $this->current_general['high'];
         $general_lowest_updated = $this->previous_general && $this->previous_general['low'] > $this->current_general['low'];
 
+
         //Buy back condition
         $end_of_day = $this->stockPrice->stock_time["hours"] >= 13 && $this->stockPrice->stock_time["minutes"] > 10;
         $price_above_yesterday_final = $this->stockPrice->best_ask_price > $this->stockPrice->yesterday_final;
         $current_price_greater_than_previous_sold = $this->previous_order && $this->stockPrice->best_ask_price >= $this->previous_order->sell;
 
 
-        //$stock_aj = StockHelper::getStockData(StockHelper::previousDay($this->stockPrice->date), $this->stockPrice->code, $this->stockPrice->current_price);
-        //If no order yet. place first order use market price
-        if(count($this->unclosed_orders) == 0 && !$this->previous_order){
+        //Check if there is un close order?
+        if(!$this->previous_order && count($this->unclosed_orders) == 0){
 
-            /*if ($stock_aj->place_order == '等拉高') {
-
-                if(($this->stockPrice->high >= $stock_aj->wail_until &&
-                        $this->lowest_updated) ||
-
-                    ($this->stockPrice->high >= $stock_aj->agency_forecast
-                        //It is dropping
-                        && $this->lowest_updated)){
-
-                    //Silent!!!
-                    $this->shortSell();
-                }
-            }*/
-            if($this->stockPrice->stock_time['hours'] == 9 && $this->stockPrice->stock_time['minutes'] == 7) {
-                $stock_aj = StockHelper::getStockData(StockHelper::previousDay($this->stockPrice->date), $this->stockPrice->code, $this->stockPrice->current_price);
-
-                if($stock_aj->place_order > 0){
-
-                    $this->shortSell($stock_aj->place_order);
-                }
+            if($this->should_sell) {
+                //request to create first order
+                $this->shortSell();
             }
         }
         else{
@@ -236,16 +219,17 @@ class TickShortSell1 implements ShouldQueue
                             $unclosed_order->closed = true;
                             $unclosed_order->tlong2 = $this->stockPrice->tlong;
                             $unclosed_order->save();
+
                             echo "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   GAI   PROFIT: {$unclosed_order->profit_percent}\n";
 
-                            $remain_unclosed_order = StockOrder::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->where("closed", false)->first();
+                            /*$remain_unclosed_order = StockOrder::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->where("closed", false)->first();
                             if($remain_unclosed_order){
                                 $remain_unclosed_order->buy = $this->stockPrice->best_ask_price;
                                 $remain_unclosed_order->closed = true;
                                 $remain_unclosed_order->tlong2 = $this->stockPrice->tlong;
                                 $remain_unclosed_order->save();
                                 echo "{$remain_unclosed_order->code}   {$this->stockPrice->current_time}: [{$remain_unclosed_order->id}]   GAI   PROFIT: {$remain_unclosed_order->profit_percent}\n";
-                            }
+                            }*/
                             return;
 
                         } else {
@@ -260,7 +244,6 @@ class TickShortSell1 implements ShouldQueue
                                 $profit_percent = $this->getProfitPercent($unclosed_order);
 
                                 $time_since_order_confirmed = ($this->stockPrice->tlong - $unclosed_order->tlong) / 1000 / 60;
-
 
 
                                 if($this->stockPrice->stock_time['hours'] < 10){
@@ -287,12 +270,14 @@ class TickShortSell1 implements ShouldQueue
                                         $unclosed_order->closed = true;
                                         $unclosed_order->save();
 
+                                        $unclosed_order->buy(true);
+
                                         $reason = implode(", ", $reason);
 
                                         echo "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   LOS   PROFIT: {$unclosed_order->profit_percent} | REASON: {$reason}\n";
 
 
-                                        $remain_unclosed_order = StockOrder::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->where("closed", false)->first();
+                                        /*$remain_unclosed_order = StockOrder::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->where("closed", false)->first();
                                         if($remain_unclosed_order){
                                             $remain_unclosed_order->buy = $this->stockPrice->best_ask_price;
                                             $remain_unclosed_order->closed = true;
@@ -300,7 +285,7 @@ class TickShortSell1 implements ShouldQueue
                                             $remain_unclosed_order->save();
                                             echo "{$remain_unclosed_order->code}   {$this->stockPrice->current_time}: [{$remain_unclosed_order->id}]   LOS   PROFIT: {$remain_unclosed_order->profit_percent} | REASON: {$reason}\n";
 
-                                        }
+                                        }*/
 
                                         return;
 
@@ -315,6 +300,9 @@ class TickShortSell1 implements ShouldQueue
 
                     }
                 }
+            }
+            elseif ($this->should_sell){
+                $this->shortSell();
             }
         }
     }
@@ -331,11 +319,11 @@ class TickShortSell1 implements ShouldQueue
 
 
             $stockOrder = new StockOrder([
-                "order_type" => StockOrder::DL1,
+                "order_type" => StockOrder::DL0,
                 "deal_type" => StockOrder::SHORT_SELL,
                 "date" => $this->stockPrice->date,
                 "code" => $this->stockPrice->code,
-                "qty" => $this->general_start < $this->yesterday_final ? 1 : round(150/$f_price),
+                "qty" => $this->general_start <= 14233 ? 1 : round(150/$f_price),
                 "sell" => $f_price,
                 "tlong" =>  !$price ? $this->stockPrice->tlong : NULL,
                 "closed" => false,
@@ -343,12 +331,17 @@ class TickShortSell1 implements ShouldQueue
             ]);
             $stockOrder->save();
 
+            $market_price = $price ? false : true;
+            $stockOrder->sell($market_price);
+
             if(!$price){
 
                 //Buy price is expected to be lower than sell price 1/0.4 points
                 $buy_price = $f_price > 100 ? $f_price - 1 : $f_price - 0.4;
                 $stockOrder->buy = $buy_price;
                 $stockOrder->save();
+
+                $stockOrder->buy(false);
 
                 echo "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   SEL   AT {$f_price} | TRY TO BUY AT {$buy_price}\n";
 

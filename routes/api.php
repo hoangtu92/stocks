@@ -43,3 +43,6 @@ Route::post("/import_cm_general", function (Request $request){
     return $data->DataPrice;
 })->middleware(['cors']);
 
+Route::post("/vendor_post_back", function (Request $request){
+    \Illuminate\Support\Facades\Log::info("Vendor post back: " .json_encode($request->toArray()));
+});

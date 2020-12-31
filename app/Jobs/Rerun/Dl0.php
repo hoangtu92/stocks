@@ -4,6 +4,8 @@ namespace App\Jobs\Rerun;
 
 use App\Crawler\StockHelper;
 use App\Holiday;
+use App\Jobs\Trading\DL0_Strategy_0;
+use App\Jobs\Trading\DL0_Strategy_1;
 use App\Jobs\Trading\TickShortSell0;
 use App\StockOrder;
 use App\StockPrice;
@@ -22,16 +24,21 @@ class Dl0 implements ShouldQueue
 
     protected $filter_date;
     protected $code;
+    protected $strategy;
     public int $timeout = 0;
     public int $tries = 2;
+
     /**
      * Create a new job instance.
      *
-     * @return void
+     * @param $filter_date
+     * @param null $code
+     * @param int $strategy
      */
-    public function __construct($filter_date, $code = null)
+    public function __construct($filter_date, $strategy = 1, $code = null)
     {
         //
+        $this->strategy = $strategy;
         $this->filter_date = $filter_date;
         $this->code = $code;
     }
@@ -43,8 +50,7 @@ class Dl0 implements ShouldQueue
      */
     public function handle()
     {
-
-        #Redis::flushall();
+        Redis::flushall();
 
         $d = date_create($this->filter_date);
 
@@ -72,6 +78,9 @@ class Dl0 implements ShouldQueue
 
             $this->callback($this->code);
 
+            $stockOrders = StockOrder::where("date", $this->filter_date)->where("code", $this->code)->get();
+            $this->summary($stockOrders);
+
         }
         else{
 
@@ -86,6 +95,11 @@ class Dl0 implements ShouldQueue
                 $this->callback($stock->code);
             }
 
+            $stockOrders = StockOrder::where("date", $this->filter_date)->get();
+            $this->summary($stockOrders);
+
+
+
         }
 
         return;
@@ -98,13 +112,42 @@ class Dl0 implements ShouldQueue
 
         foreach($stockPrices as $stockPrice){
             #if((bool) Redis::get("STOP_RERUN")) break;
-            TickShortSell0::dispatchNow($stockPrice);
+
+            if($this->strategy == 1){
+                DL0_Strategy_1::dispatchNow($stockPrice);
+            }
+            else{
+                DL0_Strategy_0::dispatchNow($stockPrice);
+            }
 
             $d = $stockPrice->time->format("Y-m-d H:i");
             $date = date_create_from_format("Y-m-d H:i", $d);
 
             Redis::hmset("Stock:previousPrice#{$stockPrice->code}", $stockPrice->toArray());
             Redis::hmset("Stock:prices#{$stockPrice->code}|{$date->getTimestamp()}", $stockPrice->toArray());
+        }
+    }
+
+    function summary($stockOrders){
+        if($stockOrders){
+            $gain = 0;
+            $loss = 0;
+            $total_fee = 0;
+            $total_tax = 0;
+            $total = 0;
+            foreach ($stockOrders as $stockOrder){
+                if($stockOrder->profit > 0){
+                    $gain += $stockOrder->profit;
+                }
+                else{
+                    $loss += $stockOrder->profit;
+                }
+                $total += $stockOrder->profit;
+                $total_fee += $stockOrder->fee;
+                $total_tax += $stockOrder->tax;
+            }
+
+            echo "TOTAL: {$total} | GAIN: {$gain} | LOSS: {$loss} | TAX: {$total_tax} | FEE: {$total_fee}\n";
         }
     }
 }

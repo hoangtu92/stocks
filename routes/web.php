@@ -59,21 +59,6 @@ Route::post("/close_order", "ActionController@close_order")->name("close_order")
 
 Route::get("/redis-test", function (){
 
-    # Redis::flushall();
-    $general_start = StockHelper::getGeneralStart(date("Y-m-d"));
-    $yesterday_final = StockHelper::getYesterdayFinal(date("Y-m-d"));
-    $general_trend = Redis::get("General:trend");
-    $current_general = StockHelper::getCurrentGeneralPrice(1606959145000);
-
-    echo json_encode([
-        "general_start" => $general_start,
-        "yesterday_final" => $yesterday_final,
-        "general_trend" => $general_trend,
-        "current_general" => $current_general,
-    ]);
-
-    echo !(bool)Redis::get("is_holiday");
-
 
     #echo json_encode(Redis::lrange("Stock:DL0", 0, -1));
 
@@ -139,9 +124,11 @@ Route::get("/stock-data/{date}/{code}", function ($date, $code){
     $stocks = DB::table("stock_prices")
         ->addSelect(DB::raw("tlong as date"))
         ->addSelect(DB::raw("ROUND((best_ask_price + best_bid_price)/2, 2) as value"))
+        ->addSelect("open")
         ->addSelect("low")
         ->addSelect("high")
         ->addSelect("yesterday_final as y")
+
         ->where("date", $date)
         ->where("code", $code)
         ->orderBy("tlong")->get();

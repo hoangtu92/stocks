@@ -17,6 +17,8 @@ class AddStockOrdersDealType extends Migration
         Schema::table('stock_orders', function (Blueprint $table) {
             $table->enum("deal_type", [StockOrder::SHORT_SELL, StockOrder::BUY_LONG])->nullable(true);
             $table->bigInteger("tlong")->comment("tlong");
+            $table->string("OID")->nullable(true);
+            $table->string("OrderNo")->nullable(true);
         });
     }
 
@@ -30,6 +32,8 @@ class AddStockOrdersDealType extends Migration
         Schema::table('stock_orders', function (Blueprint $table) {
            $table->dropColumn("deal_type");
            $table->dropColumn("tlong");
+            $table->dropColumn("OID");
+            $table->dropColumn("OrderNo");
         });
     }
 }

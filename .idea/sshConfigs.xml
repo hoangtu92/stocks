@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="139.99.61.45" id="933a6939-271f-4d90-beed-29c57335d0d0" port="22" customName="Live" nameFormat="CUSTOM" username="ubuntu">
+        <option name="customName" value="Live" />
+      </sshConfig>
+      <sshConfig authType="PASSWORD" host="51.79.161.124" id="326ff69a-5ba7-41cb-9300-5bd7a7050276" port="22" customName="Dev" nameFormat="CUSTOM" username="ubuntu">
+        <option name="customName" value="Dev" />
+      </sshConfig>
+    </configs>
+  </component>
+</project>

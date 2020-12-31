@@ -16,6 +16,7 @@ class AddPspzStockPricesTable extends Migration
         Schema::table('stock_prices', function (Blueprint $table) {
             $table->decimal("ps")->nullable(true)->after("best_ask_price");
             $table->decimal("pz")->nullable(true)->after("best_ask_price");
+            $table->integer("ip")->nullable(true)->after("pz");
 
         });
 
@@ -31,6 +32,7 @@ class AddPspzStockPricesTable extends Migration
         Schema::table('stock_prices', function (Blueprint $table) {
             $table->dropColumn("ps");
             $table->dropColumn("pz");
+            $table->dropColumn("ip");
         });
     }
 }

@@ -3,11 +3,17 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="b7a76896-b730-4642-b05a-d86916373be4" name="ovh" url="http://139.99.61.45">
-        <fileTransfer host="139.99.61.45" port="22" rootFolder="/var/www/html" accessType="SFTP">
+        <fileTransfer rootFolder="/var/www/html" accessType="SFTP" host="139.99.61.45" port="22" sshConfigId="933a6939-271f-4d90-beed-29c57335d0d0" sshConfig="Live">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
-          <option name="port" value="22" />
+        </fileTransfer>
+      </webServer>
+      <webServer id="f32fe2ef-2b30-40b7-8f64-b331413c8e78" name="139.99.61.45" url="http://139.99.61.45">
+        <fileTransfer accessType="SFTP" host="51.79.161.124" port="22" sshConfigId="326ff69a-5ba7-41cb-9300-5bd7a7050276" sshConfig="Dev">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
         </fileTransfer>
       </webServer>
     </option>

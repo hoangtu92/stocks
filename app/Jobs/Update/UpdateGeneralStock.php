@@ -65,7 +65,7 @@ class UpdateGeneralStock implements ShouldQueue
             $generalStock->save();
         }
 
-        if ($time["hours"] == 9 && $time["minutes"] >= 7 && $generalStock->price_905 == 0) {
+        if ($time["hours"] == 9 && $time["minutes"] >= 7) {
             $generalStock->price_905 = $this->generalPrice->value;
             $generalStock->save();
         }

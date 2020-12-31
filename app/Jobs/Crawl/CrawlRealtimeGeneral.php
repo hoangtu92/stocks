@@ -33,7 +33,7 @@ class CrawlRealtimeGeneral implements ShouldQueue
         $this->stop = new DateTime();
 
         $this->start->setTime(9, 0, 0);
-        $this->stop->setTime(13, 35, 0);
+        $this->stop->setTime(13, 36, 0);
     }
 
     /**

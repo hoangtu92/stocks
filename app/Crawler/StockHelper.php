@@ -93,6 +93,7 @@ class StockHelper
         return 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp?' . http_build_query([
                 "ex_ch" => $stocks_str,
                 "json" => 1,
+                "lang" => "zh_tw",
                 "_" => time()
             ]);
     }
@@ -273,10 +274,10 @@ class StockHelper
             ->addSelect(DB::raw("(((SELECT price_907)-(SELECT order_start))/(SELECT order_start))*100 as BH"))
             ->addSelect(DB::raw("ROUND((SELECT BF), 2) as order_price_range"))
             ->addSelect(DB::raw("IF((SELECT price_907) IS NULL, '等資料', IF((SELECT price_907) <= (SELECT order_start), '下', '上' ) ) as trend"))
-            ->addSelect(DB::raw("ROUND(IF( (SELECT BF) <= 2 AND (SELECT BU) >= 3.2 AND (SELECT single_agency_rate) >= 2.2 AND dl.large_trade >= 1.8, dl.final*1.055, 
-                IF((SELECT BF) <= 2.2 AND (SELECT single_agency_rate) >= 10 AND (SELECT BU) >= 4, dl.final*1.065, 
-                    IF((SELECT order_start) >= dl.final AND (SELECT BF) <1.5 AND dl.agency_price <= dl.final, dl.final*1.03, 
-                        IF( (SELECT BU) >= 5 AND (SELECT BF) <= 2, dl.final*1.05, 
+            ->addSelect(DB::raw("ROUND(IF( (SELECT BF) <= 2 AND (SELECT BU) >= 3.2 AND (SELECT single_agency_rate) >= 2.2 AND dl.large_trade >= 1.8, dl.final*1.055,
+                IF((SELECT BF) <= 2.2 AND (SELECT single_agency_rate) >= 10 AND (SELECT BU) >= 4, dl.final*1.065,
+                    IF((SELECT order_start) >= dl.final AND (SELECT BF) <1.5 AND dl.agency_price <= dl.final, dl.final*1.03,
+                        IF( (SELECT BU) >= 5 AND (SELECT BF) <= 2, dl.final*1.05,
                             IF((SELECT general_predict) >= 0 AND dl.final >= 50, dl.agency_price,
                                 IF((SELECT general_predict) <= 0.05 AND (SELECT BF) >= 0 AND dl.agency_price <= dl.final, dl.final*1.01,
                                     IF((SELECT BF) <= -0.01 AND dl.agency_price <= dl.final, dl.final*1.02,
@@ -285,7 +286,7 @@ class StockHelper
                                 )
                             )
                         )
-                    ) 
+                    )
                 )
             ), 2) as agency_forecast"))
             ->addSelect(DB::raw("ROUND((((SELECT order_start) - (SELECT agency_forecast))/(SELECT agency_forecast))*100, 1) as start_agency_range"))
@@ -368,12 +369,12 @@ class StockHelper
                 IF((SELECT place_order)='等拉高' AND (SELECT trend)='上' AND (SELECT general_price_907)>=(SELECT general_start) AND (SELECT BN)>=0.3 AND (SELECT BF)<5 AND (SELECT order_start)<100, (SELECT order_start)*1.038,
                     IF((SELECT place_order)='等拉高' AND (SELECT general_price_907)>(SELECT general_start) AND (SELECT price_907)>=(SELECT order_start) AND (SELECT start_agency_range)<=1.5, (SELECT order_start)*1.032,
                         IF((SELECT place_order)='等拉高' AND (SELECT general_price_907)>(SELECT general_start) AND (SELECT price_907)>=(SELECT order_start) AND (SELECT start_agency_range)>=1.5, (SELECT order_start)*1.024,
-                            IF((SELECT place_order)='等拉高' AND (SELECT trend)='上' AND (SELECT general_price_907)>=(SELECT general_start) AND (SELECT BN)>=0.3 AND (SELECT BF)<5 AND (SELECT order_start)>=100, (SELECT order_start)*1.038,  
+                            IF((SELECT place_order)='等拉高' AND (SELECT trend)='上' AND (SELECT general_price_907)>=(SELECT general_start) AND (SELECT BN)>=0.3 AND (SELECT BF)<5 AND (SELECT order_start)>=100, (SELECT order_start)*1.038,
                                 IF((SELECT place_order)='等拉高' AND (SELECT trend)='上' AND (SELECT general_price_907)<=(SELECT general_start) AND (SELECT BF)>=0.5, (SELECT order_start)*1.045,
                                     IF((SELECT place_order)='等拉高' AND (SELECT BF)<=1.5 AND dl.agency_price<=dl.final AND dl.large_trade<=2, dl.agency_price*1.017,
                                         IF((SELECT place_order)='等拉高' AND (SELECT general_predict) < 0 AND (SELECT price_907)>=(SELECT order_start) AND (SELECT BU)<=4.2 AND (SELECT BU)>=2 AND (SELECT start_agency_range)<=1.5, (SELECT order_start)*1.043,
                                             IF((SELECT BF)<=4 AND (SELECT BF)>=3 AND (SELECT place_order)='等拉高', (SELECT order_start)*1.018,
-                                                IF((SELECT place_order)='等拉高' AND (SELECT BF)<=5 AND (SELECT BF)>=4, (SELECT order_start)*1.03, 
+                                                IF((SELECT place_order)='等拉高' AND (SELECT BF)<=5 AND (SELECT BF)>=4, (SELECT order_start)*1.03,
                                                     IF((SELECT place_order)='做多單' AND (SELECT BF)<=5 AND (SELECT BF)>=4, (SELECT order_start)*1.028,
                                                         IF((SELECT place_order) != '等拉高' OR (SELECT place_order)='漲停不下單', 0, (SELECT agency_forecast))
                                                     )
@@ -431,6 +432,28 @@ class StockHelper
         }
 
         return $current_general;
+    }
+
+    public static function getPreviousGeneralPrice($tlong = null): ?array
+    {
+
+        if (!$tlong) $tlong = time() * 1000;
+
+        $date = new DateTime();
+        $date->setTimestamp($tlong / 1000);
+
+        $previous_general = $general = Redis::hgetall("General:previous#{$date->format("YmdHi")}");;
+
+        if (!$previous_general) {
+
+            $previous_general = GeneralPrice::where("date", $date->format("Y-m-d"))->where("tlong", "<", $tlong)->orderByDesc("tlong")->first();
+            if ($previous_general) {
+                $previous_general = $previous_general->toArray();
+                Redis::hmset("General:previous#{$date->format("YmdHi")}", $previous_general);
+            }
+        }
+
+        return $previous_general;
     }
 
     /**
@@ -529,11 +552,6 @@ ORDER BY `time` DESC LIMIT 1");
             ->orderByDesc("dl.date")
             ->get();
 
-        Redis::del("Stock:DL0");
-        foreach ($stocks as $stock) {
-            Redis::lpush("Stock:DL0", $stock->code);
-        }
-
         return $stocks;
     }
 
@@ -554,11 +572,6 @@ ORDER BY `time` DESC LIMIT 1");
             ->orderByDesc("dl.date")
             ->where("dl.date", $filter_date)->get();
 
-        Redis::del("Stock:DL1");
-        foreach ($stocks as $stock) {
-            Redis::lpush("Stock:DL1", $stock->code);
-        }
-
         return $stocks;
     }
 
@@ -572,7 +585,7 @@ ORDER BY `time` DESC LIMIT 1");
 
             foreach ($stocks as $stock) {
                 $dl0[] = $stock->code;
-                Redis::lpush("Stock:DL0", $stock->code);
+                Redis::rpush("Stock:DL0", $stock->code);
             }
         }
 
@@ -592,13 +605,12 @@ ORDER BY `time` DESC LIMIT 1");
             $stocks = self::getDL1Stocks($filter_date);
 
             foreach ($stocks as $stock) {
-                $dl0[] = $stock->code;
-                Redis::lpush("Stock:DL1", $stock->code);
+                $dl1[] = $stock->code;
+                Redis::rpush("Stock:DL1", $stock->code);
             }
         }
 
         return $dl1;
-
 
     }
 
