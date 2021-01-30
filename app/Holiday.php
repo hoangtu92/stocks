@@ -10,6 +10,5 @@ class Holiday extends Model
     protected $table = 'holidays';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    public $timestamps = true;
-    public $fillable = ["id", "name", "date"];
+    protected $fillable = ["id", "name", "date"];
 }

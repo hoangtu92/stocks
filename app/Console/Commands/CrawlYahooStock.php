@@ -4,9 +4,11 @@ namespace App\Console\Commands;
 
 use App\Crawler\StockHelper;
 use App\Jobs\CrawlYahooPrice;
+use App\StockOrder;
 use App\StockPrice;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 
 class CrawlYahooStock extends Command
 {
@@ -15,7 +17,7 @@ class CrawlYahooStock extends Command
      *
      * @var string
      */
-    protected $signature = 'crawl:yahoo {code?}';
+    protected $signature = 'crawl:yahoo {filter_date?} {code?}';
 
     /**
      * The console command description.
@@ -43,25 +45,32 @@ class CrawlYahooStock extends Command
     {
 
         StockHelper::loadGeneralPrices();
+        $filter_date = $this->argument("filter_date");
+        if(!$filter_date) $filter_date = date("Y-m-d");
+
 
         $code = $this->argument("code");
 
         if($code){
-            StockPrice::where("code", $code)->where("date", date("Y-m-d"))->delete();
+            StockPrice::where("code", $code)->where("date", $filter_date)->delete();
+            StockOrder::where("code", $code)->where("date", $filter_date)->delete();
             CrawlYahooPrice::dispatch($code)->onQueue("high");
             echo "Crawling job for {$code} queued\n";
         }
         else{
-            $filter_date = date("Y-m-d");
-
-            StockPrice::where("date", $filter_date)->delete();
 
             $stocks = DB::table("dl")
                 ->select("code")
                 ->whereRaw("dl.agency IS NOT NULL")
                 ->where("dl.final", "<", 200)
                 ->where("dl.final", ">", 10)
-                ->whereIn("date", [$filter_date, StockHelper::previousDay(StockHelper::previousDay($filter_date))])
+                ->whereIn("date", [
+                    $filter_date,
+                    StockHelper::previousDay($filter_date),
+                    StockHelper::previousDay(StockHelper::previousDay($filter_date)),
+                    ]
+                )
+                ->orderByDesc("dl.date")
                 ->groupBy("code")
                 ->get();
 

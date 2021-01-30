@@ -2,19 +2,17 @@
 
 namespace App\Console\Commands;
 
-use App\Jobs\Rerun\Dl0;
+use App\StockVendors\FBS;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Redis;
 
-
-class RerunDl0 extends Command
+class OrderSell extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'rerun:dl0 {filter_date?} {code?}';
+    protected $signature = 'Order:sell {code} {qty?} {price?}';
 
     /**
      * The console command description.
@@ -22,8 +20,6 @@ class RerunDl0 extends Command
      * @var string
      */
     protected $description = 'Command description';
-
-    protected $filter_date;
 
     /**
      * Create a new command instance.
@@ -33,7 +29,6 @@ class RerunDl0 extends Command
     public function __construct()
     {
         parent::__construct();
-
     }
 
     /**
@@ -43,13 +38,11 @@ class RerunDl0 extends Command
      */
     public function handle()
     {
-        Redis::flushall();
-        $filter_date = $this->argument("filter_date");
         $code = $this->argument("code");
-        if (!$filter_date)
-            $filter_date = date("Y-m-d");
+        $qty = $this->argument("qty") ? $this->argument("qty") : 1;
 
-        Dl0::dispatchNow($filter_date, 1, $code);
-
+        $r = FBS::sell($code, $qty, $this->argument("price"));
+        echo json_encode($r)."\n";
+        return 0;
     }
 }

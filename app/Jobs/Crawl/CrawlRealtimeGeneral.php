@@ -61,28 +61,7 @@ class CrawlRealtimeGeneral implements ShouldQueue
             return;
         }
 
-        $response = json_decode(StockHelper::get_content("https://mis.twse.com.tw/stock/data/mis_ohlc_TSE.txt?" . http_build_query(["_" => time()])));
-
-        if (isset($response->infoArray) && isset($response->infoArray[0])) {
-            $info = $response->infoArray[0];
-            if (isset($info->h) && isset($info->z) && isset($info->tlong) && isset($info->l)) {
-
-                $generalPrice = GeneralPrice::where("date", $now->format("Y-m-d"))->where("tlong", $info->tlong)->first();
-                if(!$generalPrice){
-                    $generalPrice = new GeneralPrice([
-                        'high' => $info->h,
-                        'low' => $info->l,
-                        'value' => $info->z,
-                        'date' => date("Y-m-d"),
-                        'tlong' => $info->tlong
-                    ]);
-
-                    $generalPrice->Save();
-                }
-
-            }
-
-        }
+        StockHelper::getGeneralData();
 
         $this->callback();
     }

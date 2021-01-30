@@ -42,4 +42,24 @@ class OrderController extends Controller
 
         return view("backend.place_order")->with(compact("openDeal","closeDeal", "filter_date"));
     }
+
+
+    public function vendor_orders($filter_date = null, Request $request)
+    {
+
+        if(!$filter_date)
+            if($request->filled("filter_date"))
+                $filter_date = $request->filter_date;
+            else $filter_date = date("Y-m-d");
+
+
+
+        $openDeal = StockOrder::where("date", $filter_date)
+            ->where("status", "=", StockOrder::SUCCESS)
+            ->orderBy("id", "asc")
+            ->get();
+
+
+        return view("backend.vendor_orders")->with(compact("openDeal", "filter_date"));
+    }
 }

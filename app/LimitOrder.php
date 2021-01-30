@@ -9,7 +9,6 @@ class LimitOrder extends Model
     protected $table = 'limit_orders';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    public $timestamps = true;
-    public $fillable = ["date", "id", "max", "count"];
+    protected $fillable = ["date", "id", "max", "count"];
 
 }

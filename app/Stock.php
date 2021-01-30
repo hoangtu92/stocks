@@ -14,7 +14,6 @@ class Stock extends Model
     protected $table = 'stocks';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    public $timestamps = true;
-    public $fillable = ["id", "code", "name", "type"];
-    public $hidden = ["created_at", "updated_at"];
+    protected $fillable = ["id", "code", "name", "type"];
+    protected $hidden = ["created_at", "updated_at"];
 }

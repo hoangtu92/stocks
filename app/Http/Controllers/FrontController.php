@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Crawler\Crawler;
 use App\Crawler\StockHelper;
-use App\FailedCrawl;
 use App\GeneralStock;
 use App\Holiday;
 use DateTime;
@@ -17,6 +16,7 @@ class FrontController extends Controller
 
     public function __construct()
     {
+        parent::__construct();
         $this->today = date_create(now());
     }
 

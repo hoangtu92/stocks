@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Symfony\Component\DomCrawler\Crawler;
 
 class CrawlHoliday implements ShouldQueue, ShouldBeUnique
 {
@@ -18,6 +19,7 @@ class CrawlHoliday implements ShouldQueue, ShouldBeUnique
     public $timeout = 0;
     public $tries = 1;
     protected $year;
+    protected $data = [];
     /**
      * Create a new job instance.
      *
@@ -38,22 +40,25 @@ class CrawlHoliday implements ShouldQueue, ShouldBeUnique
     public function handle()
     {
         //
-        $data = [];
-        $table = StockHelper::crawlGet("https://www.tradinghours.com/exchanges/twse/market-holidays/{$this->year}", "table.table");
-        $table->filter("tr")->each(function ($tr, $i) {
+        $table = StockHelper::crawlGet("https://www.tradinghours.com/exchanges/twse/market-holidays", "table.table");
+        $table->filter("tbody tr")->each(function ($tr, $i) {
             $tr->filter("td")->each(function ($td, $j) use ($i){
+                $td->filter("i")->each(function(Crawler $crawler){
+                   foreach($crawler as $node){
+                       $node->parentNode->removeChild($node);
+                   }
+                });
                 $value = trim($td->text());
-                if($j == 1)
-                    $data[$i]["name"] = $value;
-                if($j == 2){
-                    $date = date_create_from_format("F j, Y", $value);
-                    $data[$i]["date"] = $date->format("Y-m-d");
+                if($j == 0)
+                    $this->data[$i]["name"] = $value;
+                if($j == 0){
+                    $date = date_create_from_format("l, F j, Y", $value);
+                    $this->data[$i]["date"] = $date->format("Y-m-d");
                 }
-
             });
         });
 
-        foreach ($data as $h){
+        foreach ($this->data as $h){
 
             $holiday = Holiday::where("date", $h['date'])->first();
 

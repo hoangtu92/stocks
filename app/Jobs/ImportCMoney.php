@@ -2,7 +2,8 @@
 
 namespace App\Jobs;
 
-use App\Crawler\StockHelper;
+use App\Jobs\Trading\SelectedStrategy;
+use App\StockOrder;
 use App\StockPrice;
 use DateTime;
 use Illuminate\Bus\Queueable;
@@ -10,7 +11,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 
 class ImportCMoney implements ShouldQueue
@@ -39,25 +39,17 @@ class ImportCMoney implements ShouldQueue
     public function handle()
     {
         //
+        Redis::del("Stock:yesterday_final#{$this->code}");
+        Redis::del("Stock:previousPrice#{$this->code}");
+
         if(isset($this->data->DataPrice)){
+
+
             $d = $this->offset_date($this->data->DataPrice[0][0]/1000);
 
-            $yesterday_final = Redis::get("Stock:yesterday_final#{$this->code}");
-            if(!$yesterday_final){
+            StockPrice::where("code", $this->code)->where("date", $d->format("Y-m-d"))->delete();
+            StockOrder::where("code", $this->code)->where("date", $d->format("Y-m-d"))->delete();
 
-                $stocks = DB::table("stocks")->where("code", $this->code)->get()->toArray();
-                $url = StockHelper::getUrlFromStocks($stocks);
-
-                $json = json_decode(StockHelper::get_content($url));
-
-                if(isset($json->msgArray) && count($json->msgArray) > 0) {
-                    $stockData = $json->msgArray[0];
-                    $yesterday_final = isset($stockData->y) ? StockHelper::format_number($stockData->y) : 0;
-                    Redis::set("Stock:yesterday_final#{$this->code}", $yesterday_final, "EX", 500);
-                }
-
-
-            }
 
 
             foreach ($this->data->DataPrice as $price){
@@ -70,9 +62,10 @@ class ImportCMoney implements ShouldQueue
                  */
                 $newdate = $this->offset_date($price[0]/1000);
 
-                $last_price = StockPrice::where("date", $newdate->format("Y-m-d"))->where("code", $this->code)->where("tlong", "<", $price[0])->orderBy("tlong", "desc")->first();
-                if(!$last_price){
-                    $stockPrice = new StockPrice([
+                $last_price = (object) Redis::hgetall("Stock:previousPrice#{$this->code}");
+
+                if(!isset($last_price->code)){
+                    $stockPrice = [
                         "code" => $this->code,
                         'best_ask_price' => $price[3],
                         'latest_trade_price' => $price[1],
@@ -81,15 +74,13 @@ class ImportCMoney implements ShouldQueue
                         'low' => $price[1],
                         'high' => $price[1],
                         'trade_volume' => $price[2],
-                        'yesterday_final' => $yesterday_final,
+                        'yesterday_final' => $this->data->BasePrice,
                         'tlong' => $newdate->getTimestamp()*1000,
                         'date' => $newdate->format("Y-m-d")
-                    ]);
-                    $stockPrice->save();
+                    ];
                 }
                 else{
-                    $exists = StockPrice::where("date", $newdate->format("Y-m-d"))->where("code", $this->code)->where("tlong",  $price[0])->first();
-                    $d = [
+                    $stockPrice = [
                         "code" => $this->code,
                         'best_ask_price' => $price[3],
                         'latest_trade_price' => $price[1],
@@ -98,22 +89,14 @@ class ImportCMoney implements ShouldQueue
                         'low' => min($price[1], $last_price->low),
                         'high' => max($price[1], $last_price->high),
                         'trade_volume' => $price[2],
-                        'yesterday_final' => $yesterday_final,
+                        'yesterday_final' => $this->data->BasePrice,
                         'tlong' => $newdate->getTimestamp()*1000,
                         'date' => $newdate->format("Y-m-d")
                     ];
 
-                    if(!$exists){
-                        $stockPrice = new StockPrice($d);
-                        $stockPrice->save();
-                    }
-                    else{
-                        $exists->update($d);
-                    }
-
                 }
 
-
+                SelectedStrategy::dispatchNow($stockPrice);
 
             }
         }

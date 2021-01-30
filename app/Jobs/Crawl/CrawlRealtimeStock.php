@@ -4,32 +4,34 @@ namespace App\Jobs\Crawl;
 
 
 use App\Crawler\StockHelper;
-use App\StockPrice;
+use App\Jobs\Trading\SelectedStrategy;
 use DateTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
 class CrawlRealtimeStock implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 0;
-    public $tries = 0;
-    protected $start, $stop;
+    public int $timeout = 0;
+    public int $tries = 0;
+    protected DateTime $start;
+    protected DateTime $stop;
+    protected string $url;
 
     /**
      * Create a new job instance.
      *
-     * @return void
+     * @param string $url
      */
-    public function __construct()
+    public function __construct(string $url)
     {
+
+        $this->url =$url;
         //
         $this->start = new DateTime();
         $this->stop = new DateTime();
@@ -48,59 +50,20 @@ class CrawlRealtimeStock implements ShouldQueue
         /**
          * Start to monitor stock data
          */
-        Log::info("Start stock realtime crawl");
 
-        $filter_date = date("Y-m-d");
-
-        Redis::del("Stock:DL0");
-
-
-        $list2 = DB::table("dl")->join("stocks", "stocks.code", "=", "dl.code")
-            ->addSelect("dl.code")
-            ->addSelect("stocks.type")
-            ->where("dl.final", ">", 10)
-            ->where("dl.final", "<", 200)
-            ->whereRaw("dl.agency IS NOT NULL")
-            ->whereIn("dl.date", [
-                $filter_date,
-            ])
-            ->get()->toArray();
-
-
-        $list1 = DB::table("dl")->join("stocks", "stocks.code", "=", "dl.code")
-            ->addSelect("dl.code")
-            ->addSelect("stocks.type")
-            ->where("dl.final", ">", 10)
-            ->where("dl.final", "<", 200)
-            ->whereRaw("dl.agency IS NOT NULL")
-            ->whereIn("dl.date", [
-                #StockHelper::previousDay($filter_date),
-                StockHelper::previousDay(StockHelper::previousDay($filter_date)),
-                /*StockHelper::previousDay(StockHelper::previousDay(StockHelper::previousDay($filter_date))),
-                StockHelper::previousDay(StockHelper::previousDay(StockHelper::previousDay(StockHelper::previousDay($filter_date)))),
-                StockHelper::previousDay(StockHelper::previousDay(StockHelper::previousDay(StockHelper::previousDay(StockHelper::previousDay($filter_date))))),*/
-            ])
-            //->whereIn("dl.code", $includeFilter->stockList)
-            //->whereNotIn("dl.code", $excludeFilter->stockList)
-            //->whereNotIn("dl.code", $ll2)
-            ->get()->toArray();
-
-
-        $stocks = array_merge($list1, $list2);
-
-
-        $url = StockHelper::getUrlFromStocks($stocks);
-
-        $this->callback($url);
+        $this->callback($this->url);
     }
 
+    /**
+     * @param $url
+     * @return false
+     */
     public function callback($url){
         $now = new DateTime();
 
         if($now < $this->start || $now > $this->stop){
             return false;
         }
-
 
         //Crawl realtime stock data and save to db
         $response = StockHelper::get_content($url);
@@ -132,7 +95,7 @@ class CrawlRealtimeStock implements ShouldQueue
                 $high = StockHelper::format_number($stock->h);
                 $low = StockHelper::format_number($stock->l);
 
-                $stockInfo = [
+                $stockPrice = [
                     'code' => $stock->c,
                     'date' => date("Y-m-d"),
                     'tlong' => (int) $stock->tlong,
@@ -152,18 +115,12 @@ class CrawlRealtimeStock implements ShouldQueue
                     'yesterday_final' => $yesterday_final,
                 ];
 
-                $stockPrice = StockPrice::where("date", $stockInfo['date'])->where("code", $stockInfo['code'])->where("tlong", $stockInfo['tlong'])->first();
+                Redis::hmset("Stock:currentPrice#{$stockPrice['code']}", $stockPrice);
 
-                if(!$stockPrice){
-                    $stockPrice = new StockPrice($stockInfo);
-                    $stockPrice->save();
-                }
-
-
+                SelectedStrategy::dispatchNow($stockPrice);
 
             }
         }
-
 
         return $this->callback($url);
 

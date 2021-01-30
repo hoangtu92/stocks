@@ -24,8 +24,9 @@ class CrawlAgent implements ShouldQueue
     public int $tries = 0;
     public int $backoff = 300;
     protected Client $client;
-    protected string $filter_date;
+    protected $filter_date;
     protected array $agent_data = [];
+    protected $proxy = false;
 
     /**
      * Create a new job instance.
@@ -40,14 +41,33 @@ class CrawlAgent implements ShouldQueue
         }
         $this->filter_date = $filter_date;
 
+        $proxies = [
+            "50.117.101.159:1212",
+            "23.27.229.214:1212",
+            "209.73.154.216:1212",
+            "50.117.101.224:1212",
+            "205.164.20.110:1212",
+            "205.164.23.171:1212",
+            "23.27.247.73:1212"
+        ];
+        $idx = random_int(0, 6);
+        $this->proxy = $proxies[$idx];
+
         //
         $this->client = new Client();
         $this->client->setServerParameter('User-Agent', "Mozilla/5.0 (Windows NT 5.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.101 Safari/537.36");
         //nancyhsu0511@gmail.com
-        //$data = ["email" => "kis77628@gmail.com", "password" => "ASDFvcx2z!"];
-        $data = ["email" => "nancyhsu0511@gmail.com", "password" => "ASDFvcx2z!"];
 
-        $crawler = $this->client->request("GET", "https://histock.tw/login");
+        $idx2 = random_int(0, 1);
+
+        $uinfo = [
+            ["email" => "nancyhsu0511@gmail.com", "password" => "ASDFvcx2z!"],
+            ["email" => "kis77628@gmail.com", "password" => "ASDFvcx2z!"]
+        ];
+
+        $data = $uinfo[$idx2];
+
+        $crawler = $this->client->request("GET", "https://histock.tw/login", ['proxy' => $this->proxy]);
 
         if(!$crawler){
             $this->log_file("login", date("Ymd-his"), $crawler->outerHtml());
@@ -118,7 +138,7 @@ class CrawlAgent implements ShouldQueue
 
         # Log::debug($url);
 
-        $crawler = $this->client->request("GET", $url);
+        $crawler = $this->client->request("GET", $url, ["proxy" => $this->proxy]);
         $table = $crawler->filter("table.tb-stock")->last();
 
         if($table){
@@ -138,7 +158,7 @@ class CrawlAgent implements ShouldQueue
 
             $this->log_file($filter_date, $stock_code, $crawler->outerHtml());
             //Its really empty
-            #Log::debug("No agency found: {$stock_code}");
+            Log::debug("No agency found: {$stock_code}");
             return ["agency" => "", "total_agency_vol" => 0, "single_agency_vol" => 0, "agency_price" => 0];
         }
 

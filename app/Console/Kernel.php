@@ -10,9 +10,12 @@ use App\Jobs\Crawl\CrawlHoliday;
 use App\Jobs\Crawl\CrawlLargeTrade;
 use App\Jobs\Crawl\CrawlRealtimeGeneral;
 use App\Jobs\Crawl\CrawlRealtimeStock;
+use App\Jobs\Trading\MonitorOrder;
 use App\StockOrder;
+use App\StockVendors\SelectedVendor;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
@@ -38,23 +41,29 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
 
+        #Log::info("every mins");
+
         $schedule->call(function () {
-            $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/login");
-            Log::debug("Vendor Login" .$r);
+            $r = SelectedVendor::login();
+            Log::debug("Vendor Login" .json_encode($r));
         })->dailyAt("09:00");
 
         $schedule->call(function () {
-            $r = file_get_contents("http://dev.ml-codesign.com:8083/api/Vendor/logout");
-            Log::debug("Vendor Logout" .$r);
+            $r = SelectedVendor::logout();
+            Log::debug("Vendor Logout" .json_encode($r));
         })->dailyAt("14:30");
 
         #Log::info("Every minute run");
 
 
         $schedule->call(function () {
+            Redis::flushall();
             Redis::set("is_holiday", StockHelper::isHoliday());
+            if(StockHelper::isHoliday()){
+                Log::info("Holiday");
+            }
         })->name("is_holiday_today")
-            ->dailyAt("00:01");
+            ->dailyAt("01:00");
 
         /**
          * Crawl realtime data
@@ -69,13 +78,43 @@ class Kernel extends ConsoleKernel
             ->everyMinute()
             ->between("9:00", "13:35")
             ->withoutOverlapping()
-           ->runInBackground();
+            ->runInBackground();
 
-        $schedule->call(function (){CrawlRealtimeStock::dispatchNow();})
-            ->name("get_realtime_stock")
+        /**
+         * DL2D FBS 1
+         */
+        $schedule->call(function (){
+            $url = StockHelper::get_Dl2D_URL();
+            if(isset($url[0])){
+                Log::info("FBS play DL2D: {$url[0]}");
+                CrawlRealtimeStock::dispatchNow($url[0]);
+            }
+        })
+            ->name("FBS_DL02D_1")
             ->weekdays()
             ->when(function () {
-                return !(bool)Redis::get("is_holiday");
+                return !(bool)Redis::get("is_holiday") && env("STRATEGY") == "DL0_2D";
+            })
+            ->everyMinute()
+            ->between("9:00", "13:30")
+            ->withoutOverlapping()
+            ->runInBackground();
+
+
+        /**
+         * DL2D FBS 2
+         */
+        $schedule->call(function (){
+            $url = StockHelper::get_Dl2D_URL();
+            if(isset($url[1])){
+                Log::info("FBS play DL2D: {$url[1]}");
+                CrawlRealtimeStock::dispatchNow($url[1]);
+            }
+        })
+            ->name("FBS_DL02D_2")
+            ->weekdays()
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday") && env("STRATEGY") == "DL0_2D";
             })
             ->everyMinute()
             ->between("9:00", "13:30")
@@ -83,33 +122,64 @@ class Kernel extends ConsoleKernel
             ->runInBackground();
 
         /**
-         * Crawl dl0 real time
+         * DL2D FBS 3
          */
-        /*$schedule->job(new AnalyzeGeneral, "high")
-            ->name("get_previous_general")
+        $schedule->call(function (){
+            $url = StockHelper::get_Dl2D_URL();
+            if(isset($url[2])){
+                Log::info("FBS play DL2D: {$url[2]}");
+                CrawlRealtimeStock::dispatchNow($url[2]);
+            }
+        })
+            ->name("FBS_DL02D_3")
             ->weekdays()
-            ->everyMinute()
-            ->between("9:05", "13:25")
-            ->runInBackground()
-            ->withoutOverlapping()
             ->when(function () {
-                return !(bool)Redis::get("is_holiday");
-            });*/
+                return !(bool)Redis::get("is_holiday") && env("STRATEGY") == "DL0_2D";
+            })
+            ->everyMinute()
+            ->between("9:00", "13:30")
+            ->withoutOverlapping()
+            ->runInBackground();
 
 
         /**
-         * Close all orders at 13:08
+         * DL2D FBS 4
          */
-        $schedule->call(function () {
-            $orders = StockOrder::where("closed", false)->get();
-            foreach ($orders as $order) {
-                #$order->close_deal();
+        $schedule->call(function (){
+            $url = StockHelper::get_Dl2D_URL();
+            if(isset($url[3])){
+                Log::info("FBS play DL2D: {$url[3]}");
+                CrawlRealtimeStock::dispatchNow($url[3]);
             }
-        })->weekdays()->at("13:08")
+        })
+            ->name("FBS_DL02D_4")
+            ->weekdays()
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday") && env("STRATEGY") == "DL0_2D";
+            })
+            ->everyMinute()
+            ->between("9:00", "13:30")
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        /**
+         * Monitor orders
+         */
+        $schedule->job(new MonitorOrder, "medium")
+            ->weekdays()
+            ->when(function () {
+                return !(bool)Redis::get("is_holiday");
+            })
+            ->everyMinute()
+            ->between("9:00", "13:30");
+
+        $schedule->call(function (){
+            StockHelper::getGeneralData();
+        })->weekdays()
+            ->at("19:48")
             ->when(function () {
                 return !(bool)Redis::get("is_holiday");
             });
-
 
         /**
          * Crawl dl data
@@ -157,8 +227,9 @@ class Kernel extends ConsoleKernel
         /**
          * Crawl holiday
          */
-        $schedule->job(new CrawlHoliday, "high")->name("holiday")->weekdays()->yearly();
-
+        $schedule->job(new CrawlHoliday, "high")
+            ->name("holiday")
+            ->weekly();
     }
 
     /**

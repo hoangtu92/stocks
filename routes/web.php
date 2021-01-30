@@ -1,26 +1,12 @@
 <?php
 
 
-use App\Arav;
-use App\Charts\StockChart;
-use App\Charts\Test2Chart;
-use App\Charts\TestChart;
 use App\Crawler\StockHelper;
-use App\GeneralPrice;
-use App\Jobs\Crawl\CrawlAgent;
-use App\Jobs\Crawl\CrawlDL;
-use App\Jobs\Crawl\CrawlRealtimeGeneral;
-use App\Jobs\Crawl\CrawlRealtimeStock;
-use App\Jobs\CrawlYahooPrice;
-use App\Jobs\TestQueue;
-use App\Jobs\TestQueue2;
-use App\StockOrder;
-use App\StockPrice;
+use App\StockVendors\SelectedVendor;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Redis;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,69 +40,6 @@ Route::post("/update_order", "ActionController@update_order")->name("update_orde
 Route::post("/update_server_status", "ActionController@update_server_status")->name("update_server_status");
 Route::post("/close_all_orders", "ActionController@close_orders")->name("close_all_orders");
 Route::post("/close_order", "ActionController@close_order")->name("close_order");
-
-
-
-Route::get("/redis-test", function (){
-
-
-    #echo json_encode(Redis::lrange("Stock:DL0", 0, -1));
-
-    #TestQueue::dispatch()->onQueue("default");
-    #TestQueue2::dispatch()->onQueue("high");
-
-    # CrawlDL::dispatch()->onQueue("high");
-
-    #TestQueue::dispatch()->onQueue("low");
-    #TestQueue2::dispatch();
-
-    #CrawlYahooPrice::dispatchSync(1568);
-    #CrawlAgent::dispatchNow("2020-11-30");
-    /*$t = Redis::lrange('queues:high', 0, -1);
-    foreach($t as $q){
-        echo $q;
-    }*/
-
-    /*Redis::del("hash_test");
-    #Redis::hmset("hash_test", \App\GeneralPrice::find(5)->toArray());
-
-
-    Redis::lpush("Stock:DL1", 22);
-    Redis::lpush("Stock:DL1", 44);
-    $r = Redis::lrange("Stock:DL1", 0, -1);
-    echo json_encode($r);*/
-
-
-    /*$list2 = DB::table("dl")->join("stocks", "stocks.code", "=", "dl.code")
-        ->addSelect("dl.code")
-        ->addSelect("stocks.type")
-        ->where("dl.final", ">", 10)
-        ->where("dl.final", "<", 200)
-        ->whereRaw("dl.agency IS NOT NULL")
-        ->whereIn("dl.date", ['2020-11-30'])
-        ->get()->toArray();
-
-    $ll2 = [];
-    foreach ($list2 as $st){
-        Redis::lpush("testlist", $st->code);
-        $ll2[] = $st->code;
-    }*/
-
-    #$r = Redis::lrange("testlist", 0, -1);
-    #var_dump($r);
-
-    /*Redis::flushall();
-
-    $general_realtime = GeneralPrice::where("date", date("Y-m-d"))->get();
-    foreach ($general_realtime as $generalPrice){
-        Redis::hmset("General:realtime#{$generalPrice->time->format("YmdHi")}", $generalPrice->toArray());
-    }
-
-    $general = Redis::hgetall("General:realtime#202012020907");
-    echo json_encode($general);*/
-
-
-});
 
 Route::get("/crawlYahooData", "StockController@crawlYahoo");
 
@@ -168,3 +91,32 @@ Route::get("/order-data/{date}/{code}", function ($date, $code){
 
     return $stock_orders;
 })->name("stock_order");
+
+
+Route::get("/ip", function (Request $request){
+   echo $request->getClientIp();
+});
+
+Route::get("/test-proxy", function (){
+    $url = 'http://st8.fun/ip';
+    echo StockHelper::get_content($url);
+});
+
+
+Route::get("/redis-test", function (){
+
+    var_dump(\Illuminate\Support\Facades\Queue::size("low"));
+
+    /*$r = Redis::keys("Stock*");
+
+    $a = [];
+
+    foreach($r as $value){
+        echo $value."<br>";
+        $a[] = Redis::hgetall(str_replace("dl0_strategy_1_database_", "", $value));
+    }
+
+    var_dump($a);*/
+
+
+});

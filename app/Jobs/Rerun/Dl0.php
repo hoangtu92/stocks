@@ -5,7 +5,7 @@ namespace App\Jobs\Rerun;
 use App\Crawler\StockHelper;
 use App\Holiday;
 use App\Jobs\Trading\DL0_Strategy_0;
-use App\Jobs\Trading\DL0_Strategy_1;
+use App\Jobs\Trading\DL0_Strategy_2D;
 use App\Jobs\Trading\TickShortSell0;
 use App\StockOrder;
 use App\StockPrice;
@@ -50,7 +50,6 @@ class Dl0 implements ShouldQueue
      */
     public function handle()
     {
-        Redis::flushall();
 
         $d = date_create($this->filter_date);
 
@@ -80,25 +79,24 @@ class Dl0 implements ShouldQueue
 
             $stockOrders = StockOrder::where("date", $this->filter_date)->where("code", $this->code)->get();
             $this->summary($stockOrders);
-
         }
         else{
 
             echo "Attempt to run DL0 on {$this->filter_date}\n";
+
             StockOrder::where("date", $this->filter_date)->where("order_type", StockOrder::DL0)->delete();
 
             //Get DL0 stocks
             $stocks = StockHelper::getDL0Stocks($this->filter_date);
 
+
             foreach ($stocks as $stock){
-                if((bool) Redis::get("STOP_RERUN")) break;
+                echo "Stocks: {$stock->code}\n";
                 $this->callback($stock->code);
             }
 
             $stockOrders = StockOrder::where("date", $this->filter_date)->get();
             $this->summary($stockOrders);
-
-
 
         }
 
@@ -111,20 +109,13 @@ class Dl0 implements ShouldQueue
             ->orderBy("tlong", "asc")->get();
 
         foreach($stockPrices as $stockPrice){
-            #if((bool) Redis::get("STOP_RERUN")) break;
+
+            Redis::hmset("Stock:currentPrice#{$stockPrice->code}", $stockPrice->toArray());
 
             if($this->strategy == 1){
-                DL0_Strategy_1::dispatchNow($stockPrice);
+                DL0_Strategy_2D::dispatchNow($stockPrice);
             }
-            else{
-                DL0_Strategy_0::dispatchNow($stockPrice);
-            }
-
-            $d = $stockPrice->time->format("Y-m-d H:i");
-            $date = date_create_from_format("Y-m-d H:i", $d);
-
             Redis::hmset("Stock:previousPrice#{$stockPrice->code}", $stockPrice->toArray());
-            Redis::hmset("Stock:prices#{$stockPrice->code}|{$date->getTimestamp()}", $stockPrice->toArray());
         }
     }
 

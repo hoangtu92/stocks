@@ -11,9 +11,8 @@ class GeneralStock extends Model
     protected $table = 'general_stocks';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    public $timestamps = true;
-    public $fillable = ["id", "date", "general_start", "price_905", "today_final"];
-    public $hidden = ["created_at", "updated_at"];
+    protected $fillable = ["id", "date", "general_start", "price_905", "today_final"];
+    protected $hidden = ["created_at", "updated_at"];
     const UP = "1";
     const DOWN = "-1";
 

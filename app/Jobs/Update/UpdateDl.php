@@ -9,6 +9,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 
 class UpdateDl implements ShouldQueue
 {
@@ -35,26 +37,36 @@ class UpdateDl implements ShouldQueue
     public function handle()
     {
         //
-        $stock = Dl::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->first();
+        $stock = Redis::hgetall("stock:dl#{$this->stockPrice->code}");
+        if(!$stock){
+            $stock = Dl::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->first()->toArray();
+            Redis::hmset("stock:dl#{$this->stockPrice->code}", $stock);
+        }
         if($stock){
-            if (!$stock->open) {
-                $stock->open = $this->stockPrice->open;
-                $stock->save();
+            $update = false;
+            if (!$stock['open']) {
+                $stock['open'] = $this->stockPrice->open;
+                $update = true;
             }
 
-            if (!$stock->high || $this->stockPrice->high > $stock->high) {
-                $stock->high = $this->stockPrice->high;
-                $stock->save();
+            if (!$stock['high'] || $this->stockPrice->high > $stock['high']) {
+                $stock['high'] = $this->stockPrice->high;
+                $update = true;
             }
 
             if (!$stock->low || $this->stockPrice->low < $stock->low) {
                 $stock->low = $this->stockPrice->low;
-                $stock->save();
+                $update = true;
             }
 
-            if ($this->stockPrice->stock_time["hours"] == 9 && $this->stockPrice->stock_time["minutes"] >= 7 && !$stock->price_907) {
-                $stock->price_907 = $this->stockPrice->current_price;
-                $stock->save();
+            if ($this->stockPrice->stock_time["hours"] == 9 && $this->stockPrice->stock_time["minutes"] >= 7 && !$stock['price_907']) {
+                $stock['price_907'] = $this->stockPrice->current_price;
+                $update = true;
+            }
+
+            if($update){
+                DB::table("dl")->where("date", "=", $stock['date'])
+                    ->where("code", "=", $stock['code'])->update($stock);
             }
         }
     }

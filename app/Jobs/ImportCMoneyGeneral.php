@@ -4,11 +4,13 @@ namespace App\Jobs;
 
 use App\Crawler\StockHelper;
 use App\GeneralPrice;
+use App\Jobs\Update\SaveGeneralPrice;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Redis;
 
 class ImportCMoneyGeneral implements ShouldQueue
 {
@@ -37,8 +39,7 @@ class ImportCMoneyGeneral implements ShouldQueue
     public function handle()
     {
         if(isset($this->data->DataPrice)){
-            $d = StockHelper::offset_date($this->data->DataPrice[0][0]/1000);
-            GeneralPrice::where("date", $d->format("Y-m-d"))->delete();
+
             foreach ($this->data->DataPrice as $price){
                 /**
                  * 0: timestamp
@@ -48,44 +49,30 @@ class ImportCMoneyGeneral implements ShouldQueue
                  * 4: sold price
                  */
                 $newdate = StockHelper::offset_date($price[0]/1000);
-                $last_price = GeneralPrice::where("date", $newdate->format("Y-m-d"))->where("tlong", "<", $price[0])->orderBy("tlong", "desc")->first();
 
-                if(!$last_price) {
-                    $generalPrice = new GeneralPrice([
+                $last_price = (object) Redis::hgetall("General:previousPrice#{$newdate->format("Y-m-d")}");
+                if(!isset($last_price->low)) {
+                    $generalPrice = [
                         'low' => $price[1],
                         'high' => $price[1],
                         'value' => $price[1],
                         'tlong' => $newdate->getTimestamp()*1000,
                         'date' => $newdate->format("Y-m-d")
-                    ]);
-                    $generalPrice->save();
+                    ];
                 }
                 else{
-                    $exists = GeneralPrice::where("date", $newdate->format("Y-m-d"))->where("tlong",  $price[0])->first();
-                    if(!$exists){
-
-                        $generalPrice = new GeneralPrice([
-                            'low' => min($price[1], $last_price->low),
-                            'high' => max($price[1], $last_price->high),
-                            'value' => $price[1],
-                            'tlong' => $newdate->getTimestamp()*1000,
-                            'date' => $newdate->format("Y-m-d")
-                        ]);
-                        $generalPrice->save();
-                    }
-                    else{
-                        $exists->update([
-                            'low' => min($price[1], $last_price->low),
-                            'high' => max($price[1], $last_price->high),
-                            'value' => $price[1],
-                            'tlong' => $newdate->getTimestamp()*1000,
-                            'date' => $newdate->format("Y-m-d")
-                        ]);
-                    }
+                    $generalPrice = [
+                        'low' => min($price[1], $last_price->low),
+                        'high' => max($price[1], $last_price->high),
+                        'value' => $price[1],
+                        'tlong' => $newdate->getTimestamp()*1000,
+                        'date' => $newdate->format("Y-m-d")
+                    ];
 
                 }
 
-
+                SaveGeneralPrice::dispatch($generalPrice)->onQueue("low");
+                Redis::hmset("General:previousPrice#{$newdate->format("Y-m-d")}", $generalPrice);
 
             }
         }

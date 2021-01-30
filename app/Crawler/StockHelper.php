@@ -8,6 +8,7 @@ use App\Dl;
 use App\GeneralPrice;
 use App\GeneralStock;
 use App\Holiday;
+use App\Jobs\Update\SaveGeneralPrice;
 use App\StockOrder;
 use App\StockPrice;
 use DateTime;
@@ -15,12 +16,47 @@ use Goutte\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
+use SimpleXMLElement;
 
 class StockHelper
 {
 
-    public static function get_content($url)
+    public static function get_content($url){
+        #$proxy = "http://proxy.apify.com:8000";
+        $proxies = [
+            "50.117.101.159:1212",
+            "23.27.229.214:1212",
+            "209.73.154.216:1212",
+            "50.117.101.224:1212",
+            "205.164.20.110:1212",
+            "205.164.23.171:1212",
+            "23.27.247.73:1212"
+        ];
+        $idx = random_int(0, 6);
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_PROXY, $proxies[$idx]);
+        #curl_setopt($ch, CURLOPT_PROXYUSERPWD, "auto:esPTp4hALfCTGaLZKAaZ8i2rr");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+        #curl_setopt($ch, CURLOPT_HEADER, FALSE);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+
+        $data = curl_exec($ch);
+
+        if(curl_error($ch)){
+            Log::error(curl_error($ch));
+        }
+
+        curl_close($ch);
+
+        return $data;
+    }
+
+    public static function get_content_2($url)
     {
+
         try {
             return file_get_contents($url, false, stream_context_create(array(
                 "ssl" => array(
@@ -30,10 +66,25 @@ class StockHelper
             )));
 
         } catch (\Exception $e) {
-            //Log::error($e->getMessage());
+            Log::error($e->getMessage());
         }
 
         return null;
+
+    }
+
+    public static function getStockDl($stockPrice){
+        $stock = Redis::hgetall("stock:dl#{$stockPrice->code}");
+        if(!$stock){
+            $stock = Dl::where("code", $stockPrice->code)->where("date", $stockPrice->date)->first();
+            if($stock){
+                $stock = $stock->toArray();
+                Redis::hmset("stock:dl#{$stockPrice->code}", $stock);
+            }
+
+        }
+
+        return $stock;
     }
 
     /**
@@ -122,6 +173,29 @@ class StockHelper
             'day' => $day,
             'tw_year' => $tw_year
         ];
+    }
+
+    public static function getGeneralData(){
+        $response = json_decode(StockHelper::get_content("https://mis.twse.com.tw/stock/data/mis_ohlc_TSE.txt?" . http_build_query(["_" => time()])));
+
+        if (isset($response->infoArray) && isset($response->infoArray[0])) {
+            $info = $response->infoArray[0];
+            if (isset($info->h) && isset($info->z) && isset($info->tlong) && isset($info->l)) {
+
+                $generalPrice = [
+                    'high' => $info->h,
+                    'low' => $info->l,
+                    'value' => $info->z,
+                    'date' => date("Y-m-d"),
+                    'tlong' => $info->tlong
+                ];
+
+                SaveGeneralPrice::dispatch($generalPrice)->onQueue("low");
+                Redis::hmset("General:realtime#{$generalPrice['date']}", $generalPrice);
+
+            }
+
+        }
     }
 
 
@@ -248,6 +322,7 @@ class StockHelper
             ->addSelect("dl.agency_price")
             ->addSelect("dl.large_trade")
             ->addSelect("dl.date as next_date")
+            ->addSelect(DB::raw("DATE_FORMAT(dl.date, '%Y%m%d') as cm_date"))
             ->addSelect(DB::raw("dl.open as order_start"));
 
         if ($current_price) {
@@ -531,10 +606,20 @@ ORDER BY `time` DESC LIMIT 1");
     }
 
 
-    public static function getDL0Stocks($filter_date)
+    public static function getDL0Stocks($filter_date, $days = 1)
     {
         if (!$filter_date) {
             $filter_date = date("Y-m-d");
+        }
+
+        $filter = [];
+
+        if($days == 1){
+            $filter[] = StockHelper::previousDay($filter_date);
+        }
+
+        if($days == 2){
+            $filter[] = StockHelper::previousDay(StockHelper::previousDay($filter_date));
         }
 
         $stocks = Dl::join("stocks", "stocks.code", "=", "dl.code")
@@ -543,11 +628,7 @@ ORDER BY `time` DESC LIMIT 1");
             ->where("dl.final", "<", 200)
             ->where("dl.final", ">", 10)
             ->whereRaw("dl.agency IS NOT NULL")
-            ->whereIn("dl.date", [
-                $filter_date,
-                self::previousDay($filter_date),
-                self::previousDay(self::previousDay($filter_date)),
-            ])
+            ->whereIn("dl.date", $filter)
             ->groupBy(["dl.code", "stocks.type"])
             ->orderByDesc("dl.date")
             ->get();
@@ -575,17 +656,17 @@ ORDER BY `time` DESC LIMIT 1");
         return $stocks;
     }
 
-    public static function getDL0StocksCode($filter_date = null)
+    public static function getDL0StocksCode($filter_date = null, $days = 1)
     {
         if (!$filter_date) $filter_date = date("Y-m-d");
-        $dl0 = Redis::lrange("Stock:DL0", 0, -1);
+        $dl0 = Redis::lrange("Stock:DL0#{$filter_date}", 0, -1);
         if (!$dl0) {
             Log::debug("No dl0 in redis. retrieving from db");
-            $stocks = self::getDL0Stocks($filter_date);
+            $stocks = self::getDL0Stocks($filter_date, $days);
 
             foreach ($stocks as $stock) {
                 $dl0[] = $stock->code;
-                Redis::rpush("Stock:DL0", $stock->code);
+                Redis::rpush("Stock:DL0#{$filter_date}", $stock->code);
             }
         }
 
@@ -621,6 +702,101 @@ ORDER BY `time` DESC LIMIT 1");
         foreach ($general_realtime as $generalPrice) {
             Redis::hmset("General:realtime#{$generalPrice->time->format("YmdHi")}", $generalPrice->toArray());
         }
+    }
+
+    public static function getStocksUrl($stocks, $count = 4){
+
+        $limit = $stocks->get()->count()/$count;
+
+        $url = [];
+        for($i=0; $i< $count; $i++){
+            $u = StockHelper::getUrlFromStocks($stocks->take($limit)->offset($limit*$i)->get()->toArray());
+            $url[] = $u;
+        }
+
+        return $url;
+
+    }
+
+    /** DL0D for ESUN
+     * @return array
+     */
+    public static function get_Dl0D_URL(): array
+    {
+        $filter_date = date("Y-m-d");
+
+        $stocks = DB::table("dl")
+            ->join("stocks", "stocks.code", "=", "dl.code")
+            ->addSelect("dl.code")
+            ->addSelect("stocks.type")
+            ->where("dl.final", ">", 10)
+            ->where("dl.final", "<", 200)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->whereIn("dl.date", [
+                $filter_date
+            ])
+            ->orderByDesc("dl.date")
+            ->groupBy("dl.code", "type");
+
+        return self::getStocksUrl($stocks, 4);
+    }
+
+    /** DL01D for ESUN
+     * @return array
+     */
+    public static function get_Dl1D_URL(): array
+    {
+        $filter_date = date("Y-m-d");
+
+        $stocks = DB::table("dl")
+            ->join("stocks", "stocks.code", "=", "dl.code")
+            ->addSelect("dl.code")
+            ->addSelect("stocks.type")
+            ->where("dl.final", ">", 10)
+            ->where("dl.final", "<", 200)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->whereIn("dl.date", [
+                StockHelper::previousDay($filter_date),
+            ])
+            ->orderByDesc("dl.date")
+            ->groupBy("dl.code", "type");
+
+        return self::getStocksUrl($stocks, 4);
+    }
+    /**
+     * DL02D for FBS
+     * @return array
+     */
+    public static function get_Dl2D_URL(): array
+    {
+        $filter_date = date("Y-m-d");
+
+        $stocks = DB::table("dl")
+            ->join("stocks", "stocks.code", "=", "dl.code")
+            ->addSelect("dl.code")
+            ->addSelect("stocks.type")
+            ->where("dl.final", ">", 10)
+            ->where("dl.final", "<", 200)
+            ->whereRaw("dl.agency IS NOT NULL")
+            ->whereIn("dl.date", [
+                StockHelper::previousDay(StockHelper::previousDay($filter_date)),
+            ])
+            ->orderByDesc("dl.date")
+            ->groupBy("dl.code", "type");
+
+        return self::getStocksUrl($stocks, 4);
+    }
+
+    /**
+     * @param $xml
+     * @return mixed
+     */
+    public static function XML2Json($xml){
+        $data = mb_convert_encoding($xml, "BIG5", "UTF-8");
+
+        $doc = new SimpleXMLElement($data);
+        $json = json_encode($doc);
+        return json_decode($json, true);
     }
 
 

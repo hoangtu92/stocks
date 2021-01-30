@@ -2,11 +2,8 @@
 
 namespace App;
 
-use Backpack\Settings\app\Models\Setting;
 use DateTime;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Redis;
 
 class StockOrder extends Model
 {
@@ -14,12 +11,7 @@ class StockOrder extends Model
     protected $table = 'stock_orders';
     protected $primaryKey = 'id';
     public $incrementing = true;
-    public $timestamps = true;
-    protected $casts = [
-        'buy'  =>  'float',
-        'sell'       =>  'float',
-    ];
-    public $fillable = [
+    protected $fillable = [
         "id",
         "code",
         "qty",
@@ -40,6 +32,12 @@ class StockOrder extends Model
     const DL0 = "dl0";
     const DL1 = "dl1";
     const DL2 = "dl2";
+    const BUY = 'buy';
+    const SELL = 'sell';
+    const SUCCESS = "success";
+    const FAILED = "failed";
+    const PENDING = "pending";
+    const CANCELED = "canceled";
 
 
     public function stock(){
@@ -78,14 +76,14 @@ class StockOrder extends Model
     }
 
     public function getFinalBuyAttribute(){
-        $fee = ($this->attributes["buy"]*$this->qty* 1.425*0.38);
-        return $this->attributes["buy"]*$this->qty*1000 + $fee;
+        $fee = ($this->buy*$this->qty* 1.425*0.38);
+        return $this->buy*$this->qty*1000 + $fee;
     }
 
     public function getFinalSellAttribute(){
-        $tax = ($this->attributes["sell"]*$this->qty*1.5);
-        $fee = ($this->attributes["sell"]*$this->qty* 1.425*0.38);
-        return $this->attributes["sell"]*$this->qty*1000 - $tax - $fee;
+        $tax = ($this->sell*$this->qty*1.5);
+        $fee = ($this->sell*$this->qty* 1.425*0.38);
+        return $this->sell*$this->qty*1000 - $tax - $fee;
     }
 
     public function getProfitAttribute(){
@@ -109,58 +107,8 @@ class StockOrder extends Model
         return $this->current_price > 0 ? round(($this->current_profit/($this->current_price*$this->qty*1000))*100, 2) : 0;
     }
 
+    public function close_deal(){
 
-    /**
-     * @param bool $market_price
-     * @return bool|false|string
-     */
-    public function buy($market_price = false){
-        if((int) Redis::get("bought") == 1) return false;
-        Log::debug( "Buy back for stock order {$this->id} - Code: $this->code | Profit: {$this->profit_percent}" );
-        if ( Setting::get( 'server_status' ) == '0' ) {
-            return false;
-        }
-
-        $price = $market_price ? "" : $this->buy;
-
-        $url       = "http://dev.ml-codesign.com:8083/api/Vendor/order/B/{$this->code}/{$this->qty}/{$price}";
-        $r         = file_get_contents( $url );
-        Log::debug("Buy response: ".$r);
-        Redis::set("bought", 1);
-        return $r;
-    }
-
-    /**
-     * @param false $market_price
-     * @return bool|false|string
-     */
-    public function sell($market_price = false){
-        if((int) Redis::get("sold") == 1) return false;
-        Log::debug( "Sell out for stock order {$this->id} - Code: $this->code | Profit: {$this->profit_percent}" );
-        if ( Setting::get( 'server_status' ) == '0' ) {
-            return false;
-        }
-
-        $price = $market_price ? "" : $this->sell;
-
-        $url       = "http://dev.ml-codesign.com:8083/api/Vendor/order/S/{$this->code}/{$this->qty}/{$price}";
-        $r         = file_get_contents( $url );
-        Log::debug("Sell response: ".$r);
-
-        Redis::set("sold", 1);
-        return $r;
-    }
-
-    /**
-     * @param $OID
-     * @param $orderNo
-     * @return false|string
-     */
-    public function cancel($OID, $orderNo){
-        $url       = "http://dev.ml-codesign.com:8083/api/Vendor/cancelOrder/{$OID}/{$orderNo}";
-        $r         = file_get_contents( $url );
-        Log::debug("Cancel response: ".$r);
-        return $r;
     }
 
 

@@ -27,7 +27,7 @@ class StockController extends Controller
 
         Log::info("Crawling dl data for ".$filter_date);
 
-        CrawlDl::dispatch($filter_date);
+        CrawlDl::dispatchNow($filter_date);
 
         return redirect(route("data", ["date" => $filter_date]));
     }

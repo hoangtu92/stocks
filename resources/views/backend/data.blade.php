@@ -23,7 +23,7 @@
         @endforeach--}}
 
         <td>{{$tr->date}}</td>
-        <td>{{$tr->code}}</td>
+        <td><a target="_blank" href="http://www.cmoney.tw/notice/chart/stockchart.aspx?action=r&id={{$tr->code}}&date={{$tr->cm_date}}">{{$tr->code}}</a></td>
         <td>{{$tr->name}}</td>
         <td>{{$tr->final}}</td>
         <td>{{$tr->range}}%</td>

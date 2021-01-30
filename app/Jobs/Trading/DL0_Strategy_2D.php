@@ -3,8 +3,12 @@
 namespace App\Jobs\Trading;
 
 use App\Crawler\StockHelper;
+use App\Jobs\Analyze\MonitorOrders;
+use App\Jobs\Order\PlaceOrder;
 use App\StockOrder;
 use App\StockPrice;
+use App\StockVendors\SelectedVendor;
+use Backpack\Settings\app\Models\Setting;
 use DateTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,7 +17,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Redis;
 
-class DL0_Strategy_1 implements ShouldQueue
+class DL0_Strategy_2D implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -125,8 +129,6 @@ class DL0_Strategy_1 implements ShouldQueue
 
 
         if(1
-            #&& $open_price_range > 3
-            #&& $this->high_was_great
             && ($this->stockPrice->stock_time['hours'] < 13 || ($this->stockPrice->stock_time['hours'] == 13 && $this->stockPrice->stock_time['minutes'] < 10))
             && $this->lowest_updated > 0
             && count($this->unclosed_orders) < 2
@@ -139,7 +141,6 @@ class DL0_Strategy_1 implements ShouldQueue
 
         }
         $this->should_sell_another = false;
-
     }
 
     /**
@@ -149,6 +150,7 @@ class DL0_Strategy_1 implements ShouldQueue
      */
     public function handle()
     {
+
         //
 
         //best_bid_price = use when selling | The bid price refers to the highest price a buyer will pay
@@ -246,19 +248,31 @@ class DL0_Strategy_1 implements ShouldQueue
                                 $time_since_order_confirmed = ($this->stockPrice->tlong - $unclosed_order->tlong) / 1000 / 60;
 
 
-                                if($this->stockPrice->stock_time['hours'] < 10){
+                                if ($this->stockPrice->stock_time['hours'] >= 10) {
 
-                                    if($profit <= -1800 && $general_highest_updated){
-                                        $reason[] = "PROFIT < -1800 When General High Updated | {$previous_profit}/{$profit}";
+                                    if ($profit <= -1800 && $general_highest_updated) {
+                                        $reason[] = "PROFIT < -1800 When General High Updated | {$profit}";
                                     }
                                 }
 
-                                if(($price_above_yesterday_final && $this->time_since_begin < 30)){
+                                if (($price_above_yesterday_final && $this->time_since_begin < 30)) {
                                     $reason[] = "PRICE > Y: {$this->stockPrice->best_ask_price}/{$this->stockPrice->yesterday_final}";
                                 }
 
-                                if($end_of_day){
+                                if ($this->highest_updated) {
+                                    $reason[] = "PRICE IS RISING";
+                                }
+
+                                if ($this->stockPrice->current_price_range >= 6) {
+                                    $reason[] = "PRICE RANGE ABOVE 6%";
+                                }
+
+                                if ($end_of_day) {
                                     $reason[] = "EOD";
+                                }
+
+                                if ($time_since_order_confirmed > 20) {
+                                    $reason[] = "TIMEOUT";
                                 }
 
                                 if ($this->time_since_begin > 10 || $this->time_since_begin < 10 && $time_since_order_confirmed > 2) {
@@ -269,8 +283,6 @@ class DL0_Strategy_1 implements ShouldQueue
                                         $unclosed_order->tlong2 = $this->stockPrice->tlong;
                                         $unclosed_order->closed = true;
                                         $unclosed_order->save();
-
-                                        $unclosed_order->buy(true);
 
                                         $reason = implode(", ", $reason);
 
@@ -305,7 +317,9 @@ class DL0_Strategy_1 implements ShouldQueue
                 $this->shortSell();
             }
         }
+
     }
+
 
     private function shortSell($price = null){
 
@@ -318,42 +332,37 @@ class DL0_Strategy_1 implements ShouldQueue
         if($f_price <= 0) return;
 
 
-            $stockOrder = new StockOrder([
-                "order_type" => StockOrder::DL0,
-                "deal_type" => StockOrder::SHORT_SELL,
-                "date" => $this->stockPrice->date,
-                "code" => $this->stockPrice->code,
-                "qty" => $this->general_start <= 14233 ? 1 : round(150/$f_price),
-                "sell" => $f_price,
-                "tlong" =>  !$price ? $this->stockPrice->tlong : NULL,
-                "closed" => false,
-                "created_at" => $this->stockPrice->time->format("Y-m-d H:i:s")
-            ]);
+        $stockOrder = new StockOrder([
+            "order_type" => StockOrder::DL0,
+            "deal_type" => StockOrder::SHORT_SELL,
+            "date" => $this->stockPrice->date,
+            "code" => $this->stockPrice->code,
+            "qty" => $this->general_start <= 14233 ? 1 : round(150/$f_price),
+            "sell" => $f_price,
+            "tlong" =>  !$price ? $this->stockPrice->tlong : NULL,
+            "closed" => false,
+            "created_at" => $this->stockPrice->time->format("Y-m-d H:i:s")
+        ]);
+        $stockOrder->save();
+
+        if(!$price){
+
+            //Buy price is expected to be lower than sell price 1/0.4 points
+            $buy_price = $f_price > 100 ? $f_price - 1 : $f_price - 0.4;
+            $stockOrder->buy = $buy_price;
             $stockOrder->save();
 
-            $market_price = $price ? false : true;
-            $stockOrder->sell($market_price);
-
-            if(!$price){
-
-                //Buy price is expected to be lower than sell price 1/0.4 points
-                $buy_price = $f_price > 100 ? $f_price - 1 : $f_price - 0.4;
-                $stockOrder->buy = $buy_price;
-                $stockOrder->save();
-
-                $stockOrder->buy(false);
-
-                echo "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   SEL   AT {$f_price} | TRY TO BUY AT {$buy_price}\n";
+            echo "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   SEL   AT {$f_price} | TRY TO BUY AT {$buy_price}\n";
 
 
-                if($this->should_sell_another){
-                    $this->shortSell($stockOrder->sell);
-                }
-
+            if($this->should_sell_another){
+                $this->shortSell($stockOrder->sell);
             }
-            else{
-                echo "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   TRY   AT {$f_price} \n";
-            }
+
+        }
+        else{
+            echo "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   TRY   AT {$f_price} \n";
+        }
 
 
 

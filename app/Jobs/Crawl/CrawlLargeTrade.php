@@ -81,6 +81,8 @@ class CrawlLargeTrade implements ShouldQueue, ShouldBeUnique
     private function getLargeTrade($result, $date){
         $previousDate = $this->getPrevious3Days($date);
 
+        #Log::info(json_encode($previousDate));
+
         $data = ["previous_3_days" => 0, "today" => 0];
         foreach ($result as $r){
             if($r[0] == $previousDate[0]){
@@ -129,8 +131,11 @@ class CrawlLargeTrade implements ShouldQueue, ShouldBeUnique
                 "stkno" => $stock_code,
                 "d" => $filter_date]);
 
+        $res = StockHelper::get_content($url);
 
-        $res = json_decode(StockHelper::get_content($url));
+        #Log::info(json_encode($res));
+
+        $res = json_decode($res);
 
         if(isset($res->aaData)){
 
@@ -146,8 +151,6 @@ class CrawlLargeTrade implements ShouldQueue, ShouldBeUnique
             if(isset($res2->aaData)){
                 $result = array_merge($res2->aaData, $res->aaData);
             }
-
-            # Log::info($url2.json_encode($result));
 
             return $this->getLargeTrade($result, $date);
         }
@@ -198,6 +201,7 @@ class CrawlLargeTrade implements ShouldQueue, ShouldBeUnique
             return $this->getLargeTrade($result, $date);
         }
 
+        #Log::info(json_encode($res));
         Log::info("Failed to get data {$url}");
 
         return null;

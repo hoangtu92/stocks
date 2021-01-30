@@ -21,12 +21,12 @@ class Tpex extends Crawler
                 "d" => $filter_date]);
 
 
-        $response = file_get_contents($url);
+        $response = StockHelper::get_content($url);
 
         $json = json_decode($response);
 
         if(isset($json->aaData)){
-            
+
             return $json->aaData;
         }
         else{

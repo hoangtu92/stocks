@@ -2,16 +2,17 @@
 
 namespace App\Console\Commands;
 
+use App\StockVendors\FBS;
 use Illuminate\Console\Command;
 
-class RerunTickShortSellDl0 extends Command
+class OrderBuy extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'command:name';
+    protected $signature = 'Order:buy {code} {qty}, {price}';
 
     /**
      * The console command description.
@@ -37,6 +38,11 @@ class RerunTickShortSellDl0 extends Command
      */
     public function handle()
     {
+        $code = $this->argument("code");
+        $qty = $this->argument("qty") ? $this->argument("qty") : 1;
+
+        $r = FBS::buy($code, $qty, $this->argument("price"));
+        echo json_encode($r)."\n";
         return 0;
     }
 }
