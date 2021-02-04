@@ -9,8 +9,8 @@
           </advancedOptions>
         </fileTransfer>
       </webServer>
-      <webServer id="f32fe2ef-2b30-40b7-8f64-b331413c8e78" name="Dev - 51.79.161.124" url="http://139.99.61.45">
-        <fileTransfer accessType="SFTP" host="51.79.161.124" port="22" sshConfigId="326ff69a-5ba7-41cb-9300-5bd7a7050276" sshConfig="Dev">
+      <webServer id="f32fe2ef-2b30-40b7-8f64-b331413c8e78" name="Dev - 51.79.161.124" url="http://51.79.161.124">
+        <fileTransfer rootFolder="/var/www/html" accessType="SFTP" host="51.79.161.124" port="22" sshConfigId="326ff69a-5ba7-41cb-9300-5bd7a7050276" sshConfig="Dev">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

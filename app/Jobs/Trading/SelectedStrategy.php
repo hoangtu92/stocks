@@ -102,6 +102,6 @@ class SelectedStrategy implements ShouldQueue
 
         }
 
-        Redis::hmset("Stock:previousPrice#{$this->stockPrice->code}", $this->stockPrice->toArray());
+        Redis::hmset("Stock:previousPrice#{$this->stockPrice->code}#{$this->stockPrice->date}", $this->stockPrice->toArray());
     }
 }

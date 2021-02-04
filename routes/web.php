@@ -107,8 +107,9 @@ Route::get("/test-proxy", function (){
 
 Route::get("/redis-test", function (){
 
-    echo "Low: " .Queue::size("low")."<br>";
-    echo "High: " .Queue::size("high")."<br>";
+    phpinfo();
+    //echo "Low: " .Queue::size("low")."<br>";
+    //echo "High: " .Queue::size("high")."<br>";
 
     /*$r = Redis::keys("Stock*");
 

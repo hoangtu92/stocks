@@ -49,8 +49,10 @@ class CrawlYahooPrice implements ShouldQueue
                 "_" => time()
             ]);
 
-        Redis::del("Stock:yesterday_final#{$this->code}");
-        Redis::del("Stock:previousPrice#{$this->code}");
+        $date = date("Y-m-d");
+
+        Redis::del("Stock:yesterday_final#{$this->code}#{$date}");
+        Redis::del("Stock:previousPrice#{$this->code}#{$date}");
 
         $data = StockHelper::get_content($url);
         $data = json_decode(trim($data, "();"));
@@ -66,7 +68,7 @@ class CrawlYahooPrice implements ShouldQueue
 
                 $time = date_create_from_format("YmdHis", $tick->t);
 
-                $last_price = (object) Redis::hgetall("Stock:previousPrice#{$this->code}");
+                $last_price = (object) Redis::hgetall("Stock:previousPrice#{$this->code}#{$date}");
 
                 if(!isset($last_price->code)){
                     $stockPrice = [
