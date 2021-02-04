@@ -2,12 +2,8 @@
 
 namespace App\Jobs\Rerun;
 
-use App\Crawler\StockHelper;
-use App\Holiday;
-use App\Jobs\Trading\DL0_Strategy_0;
+use App\Jobs\Trading\DL0_Real_Strategy_2D;
 use App\Jobs\Trading\DL0_Strategy_2D;
-use App\Jobs\Trading\TickShortSell0;
-use App\StockOrder;
 use App\StockPrice;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -22,25 +18,25 @@ class Dl0 implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    protected $filter_date;
-    protected $code;
-    protected $strategy;
+    protected int $code;
+    protected string $type;
+    protected string $filter_date;
     public int $timeout = 0;
     public int $tries = 2;
 
     /**
      * Create a new job instance.
      *
+     * @param $code
      * @param $filter_date
-     * @param null $code
-     * @param int $strategy
+     * @param string $type
      */
-    public function __construct($filter_date, $strategy = 1, $code = null)
+    public function __construct($code, $filter_date, $type = 'fake')
     {
         //
-        $this->strategy = $strategy;
-        $this->filter_date = $filter_date;
         $this->code = $code;
+        $this->filter_date = $filter_date;
+        $this->type = $type;
     }
 
     /**
@@ -51,94 +47,54 @@ class Dl0 implements ShouldQueue
     public function handle()
     {
 
-        $d = date_create($this->filter_date);
-
-        $h = Holiday::whereRaw("DATE_FORMAT(date, '%Y') =  {$d->format('Y')}")->get()->toArray();
-        $holiday = array_reduce($h, function ($t, $e){
-            $t[] = $e['date'];
-            return $t;
-        }, []);
-
-        //If weekend or holiday
-        if ($d->format("N") >= 6 || in_array($d->format("Y-m-d"), $holiday)){
-            Log::debug("Today is off\n");
-            return false;
-        }
-
-        StockHelper::loadGeneralPrices($this->filter_date);
-
-        /**
-         *
-         */
-
-        if($this->code){
-            echo "Attempt to run DL0 on {$this->filter_date} for {$this->code}\n";
-            StockOrder::where("date", $this->filter_date)->where("order_type", StockOrder::DL0)->where("code", $this->code)->delete();
-
-            $this->callback($this->code);
-
-            $stockOrders = StockOrder::where("date", $this->filter_date)->where("code", $this->code)->get();
-            $this->summary($stockOrders);
-        }
-        else{
-
-            echo "Attempt to run DL0 on {$this->filter_date}\n";
-
-            StockOrder::where("date", $this->filter_date)->where("order_type", StockOrder::DL0)->delete();
-
-            //Get DL0 stocks
-            $stocks = StockHelper::getDL0Stocks($this->filter_date);
-
-
-            foreach ($stocks as $stock){
-                echo "Stocks: {$stock->code}\n";
-                $this->callback($stock->code);
-            }
-
-            $stockOrders = StockOrder::where("date", $this->filter_date)->get();
-            $this->summary($stockOrders);
-
-        }
-
-        return;
-    }
-
-    function callback($code){
-        $stockPrices = StockPrice::where("code", $code)
+        $stockPrices = StockPrice::where("code", $this->code)
             ->where("date", $this->filter_date)
             ->orderBy("tlong", "asc")->get();
 
         foreach($stockPrices as $stockPrice){
 
-            Redis::hmset("Stock:currentPrice#{$stockPrice->code}", $stockPrice->toArray());
+            Redis::hmset("Stock:currentPrice#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->toArray());
 
-            if($this->strategy == 1){
+            $lowest = (float) Redis::get("Stock:lowest#{$stockPrice->code}#{$stockPrice->date}");
+            $highest =  (float) Redis::get("Stock:highest#{$stockPrice->code}#{$stockPrice->date}");
+
+            if(!$lowest){
+                Redis::set("Stock:lowest#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->best_bid_price);
+            }
+            else if($stockPrice->best_bid_price < $lowest){
+                //Lowest updated
+                Redis::set("Stock:lowest_updated#{$stockPrice->code}#{$stockPrice->date}", 1);
+                Redis::set("Stock:lowest#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->best_bid_price);
+            }
+            else{
+                Redis::set("Stock:lowest_updated#{$stockPrice->code}#{$stockPrice->date}", 0);
+            }
+
+            if(!$highest){
+                Redis::set("Stock:highest#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->best_bid_price);
+            }
+            else if($highest < $stockPrice->best_bid_price){
+                //Highest updated
+
+                Redis::set("Stock:highest_updated#{$stockPrice->code}#{$stockPrice->date}", 1);
+                Redis::set("Stock:highest#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->best_bid_price);
+            }
+            else{
+                Redis::set("Stock:highest_updated#{$stockPrice->code}#{$stockPrice->date}", 0);
+            }
+
+            //Log::debug("{$stockPrice->current_time} {$lowest}");
+
+
+            if($this->type == 'real'){
+                DL0_Real_Strategy_2D::dispatchNow($stockPrice);
+            }
+            else{
                 DL0_Strategy_2D::dispatchNow($stockPrice);
-            }
-            Redis::hmset("Stock:previousPrice#{$stockPrice->code}", $stockPrice->toArray());
-        }
-    }
 
-    function summary($stockOrders){
-        if($stockOrders){
-            $gain = 0;
-            $loss = 0;
-            $total_fee = 0;
-            $total_tax = 0;
-            $total = 0;
-            foreach ($stockOrders as $stockOrder){
-                if($stockOrder->profit > 0){
-                    $gain += $stockOrder->profit;
-                }
-                else{
-                    $loss += $stockOrder->profit;
-                }
-                $total += $stockOrder->profit;
-                $total_fee += $stockOrder->fee;
-                $total_tax += $stockOrder->tax;
             }
-
-            echo "TOTAL: {$total} | GAIN: {$gain} | LOSS: {$loss} | TAX: {$total_tax} | FEE: {$total_fee}\n";
+            Redis::hmset("Stock:previousPrice#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->toArray());
         }
+
     }
 }

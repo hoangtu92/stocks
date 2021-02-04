@@ -14,7 +14,7 @@ class VendorOrder extends Model
     public $incrementing = true;
     protected $fillable = [
         "id",
-        "StockID",
+        "code",
         "qty",
         "BS",
         "price",
@@ -25,6 +25,7 @@ class VendorOrder extends Model
         "date",
         "status",
         "tlong",
+        "type",
         "deal_type",
         "order_type",
         "created_at",

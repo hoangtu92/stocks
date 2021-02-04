@@ -116,7 +116,7 @@ class DL0_Real_Strategy_2D implements ShouldQueue
                                 $o["State"] = 98;
                                 $o["CanCancel"] = "N";
                                 $o["ConfirmTime"] = date("Ymd Hisv");
-                                $o["Price"] = $this->stockPrice->best_bid_price;
+                                //$o["Price"] = $this->stockPrice->best_bid_price;
                                 Redis::hmset("Stock:PendingOrders:{$o["StockID"]}#{$o["OrderNo"]}", $o);
                                 echo "Order Success {$o["BS"]} {$o["StockID"]} : {$o["OrderNo"]} at {$o["Price"]}\n";
                             }
@@ -126,7 +126,7 @@ class DL0_Real_Strategy_2D implements ShouldQueue
                                 $o["State"] = 98;
                                 $o["CanCancel"] = "N";
                                 $o["ConfirmTime"] = date("Ymd Hisv");
-                                $o["Price"] = $this->stockPrice->best_ask_price;
+                                //$o["Price"] = $this->stockPrice->best_ask_price;
                                 Redis::hmset("Stock:PendingOrders:{$o["StockID"]}#{$o["OrderNo"]}", $o);
                                 echo "Order Success {$o["BS"]} {$o["StockID"]} : {$o["OrderNo"]} at {$o["Price"]}\n";
                             }
@@ -180,7 +180,7 @@ class DL0_Real_Strategy_2D implements ShouldQueue
 
         if($lastSold && $pendingBuy && $countSuccessOrders > 0 && $countSuccessOrders%2 != 0){
 
-            echo "Pending buy available\n";
+            //echo "Pending buy available\n";
 
             $reason = [];
 

@@ -8,8 +8,8 @@
 namespace App\Jobs\Analyze;
 
 use App\Jobs\Order\PlaceOrder;
-use App\StockOrder;
 use App\StockVendors\SelectedVendor;
+use App\VendorOrder;
 use Backpack\Settings\app\Models\Setting;
 use DateTime;
 use Illuminate\Bus\Queueable;
@@ -83,23 +83,27 @@ class MonitorOrders implements ShouldQueue
                             case 30: //Commission success 委託成功 order Pending
                                 //Pending
 
+                                Redis::hmset("Stock:PendingOrders:{$order['code']}#{$order['OrderNo']}", $order);
+
                                 if ($vendorOrder["BS"] == "S" && $time_since_order_created >= 5 && $vendorOrder["CanCancel"] == "Y") {
                                     //Cancel order for timeout
                                     $r = SelectedVendor::cancel($vendorOrder["OID"], $vendorOrder["OrderNo"]);
                                     if ($r["Status"]) {
-                                        $order['status'] = StockOrder::CANCELED;
+                                        $order['status'] = VendorOrder::CANCELED;
                                         $order['updated_at'] = now();
-                                        Redis::hmset("Stock:PendingOrders:{$order['code']}#{$order['OrderNo']}", $order);
-                                        StockOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->delete();
+                                        Redis::del("Stock:PendingOrders:{$order['code']}#{$order['OrderNo']}");
+                                        VendorOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->delete();
+                                        echo "Monitor: Order Pending deleted due to timeout {$order['id']} {$order['code']}\n";
                                     }
                                 }
 
                                 break;
                             case 98: //Success
                                 $order['tlong'] = $createdTime->getTimestamp() * 1000;
-                                $order['status'] = StockOrder::SUCCESS;
+                                $order['status'] = VendorOrder::SUCCESS;
                                 $order['price'] = $vendorOrder["Price"];
                                 $order['updated_at'] = now();
+
 
                                 Redis::del("Stock:PendingOrders:{$order['code']}#{$order['OrderNo']}");
                                 Redis::hmset("Stock:SuccessOrders:{$order['code']}#{$order['OrderNo']}", $order);
@@ -109,22 +113,25 @@ class MonitorOrders implements ShouldQueue
                                     //Sell command has completed. Buy back immediately
                                     $countSuccessOrders = count(Redis::keys("Stock:SuccessOrders:{$order['code']}*"));
 
-                                    echo "Success: {$countSuccessOrders}\n";
+                                    echo "Monitor: Order Sell success {$order['id']} {$order['code']}\n";
+
                                     //Buy back immediately
                                     if($countSuccessOrders > 0 && $countSuccessOrders%2 != 0){
                                         $buy_price = $order['price'] > 100 ? $order['price'] - 1 : $order['price'] - 0.4;
 
-                                        PlaceOrder::dispatch(StockOrder::BUY, $stockPrice, $buy_price)->onQueue("high");
+                                        PlaceOrder::dispatch(VendorOrder::BUY, $stockPrice, $buy_price)->onQueue("high");
                                         echo "{$order['code']}: Sold at {$order['price']} | Buy Back at {$buy_price}\n";
                                     }
 
                                 }
                                 if($vendorOrder["BS"] == "B"){
                                     //Turn off server
-                                    Setting::set("server_status", 0);
+                                    //Setting::set("server_status", 0);
+                                    echo "Monitor: Order Sell success {$order['id']} {$order['code']}\n";
+                                    Redis::del("Stock:pendingBuy#{$order['code']}");
                                 }
 
-                                StockOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->update([
+                                VendorOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->update([
                                     "tlong" => $order['tlong'],
                                     "status" => $order["status"],
                                     "price" => $order["price"],
@@ -133,18 +140,18 @@ class MonitorOrders implements ShouldQueue
 
                                 break;
                             case 99: //Deleted
-                                $order['status'] = StockOrder::CANCELED;
+                                $order['status'] = VendorOrder::CANCELED;
                                 $order['updated_at'] = now();
                                 Redis::del("Stock:PendingOrders:{$order['code']}#{$order['OrderNo']}");
                                 Redis::hmset("Stock:DeletedOrders:{$order['code']}#{$order['OrderNo']}", $order);
-                                StockOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->delete();
+                                VendorOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->delete();
                                 break;
                             default:
-                                $order['status'] = StockOrder::FAILED;
+                                $order['status'] = VendorOrder::FAILED;
                                 $order['updated_at'] = now();
                                 Redis::del("Stock:PendingOrders:{$order['code']}#{$order['OrderNo']}");
                                 Redis::hmset("Stock:FailedOrders:{$order['code']}#{$order['OrderNo']}", $order);
-                                StockOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->delete();
+                                VendorOrder::where("OrderNo", $order['OrderNo'])->where("code", $order['code'])->delete();
 
                                 //Error
                                 break;

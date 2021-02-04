@@ -10,6 +10,7 @@ use App\Holiday;
 use App\Jobs\Trading\ShortSell0;
 use App\StockOrder;
 use App\StockPrice;
+use App\VendorOrder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
@@ -44,7 +45,7 @@ class OrderController extends Controller
     }
 
 
-    public function vendor_orders($filter_date = null, Request $request)
+    public function vendorOrders($filter_date = null, Request $request)
     {
 
         if(!$filter_date)
@@ -54,8 +55,8 @@ class OrderController extends Controller
 
 
 
-        $openDeal = StockOrder::where("date", $filter_date)
-            ->where("status", "=", StockOrder::SUCCESS)
+        $openDeal = VendorOrder::where("date", $filter_date)
+            ->where("status", "=", VendorOrder::SUCCESS)
             ->orderBy("id", "asc")
             ->get();
 

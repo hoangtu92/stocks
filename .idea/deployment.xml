@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="ovh">
+  <component name="PublishConfigData" autoUpload="Always" serverName="Live 139.99.61.45">
     <serverData>
-      <paths name="51.79.161.124">
+      <paths name="Dev - 51.79.161.124">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>
-      <paths name="ovh">
+      <paths name="Live 139.99.61.45">
         <serverdata>
           <mappings>
             <mapping deploy="/" local="$PROJECT_DIR$" web="/" />

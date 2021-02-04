@@ -4,6 +4,7 @@
 use App\Crawler\StockHelper;
 use App\StockVendors\SelectedVendor;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Redis;
@@ -32,6 +33,7 @@ Route::get('/crawl/xz/{date?}', "StockController@crawlXZ")->name("crawl_xz");
 Route::get("/crawl/reAgency", "StockController@reCrawlAgency")->name("re_crawl_agency");
 
 Route::get("/test/{filter_date?}", "OrderController@test")->name("test");
+Route::get("/vendor-orders/{filter_date?}", "OrderController@vendorOrders")->name("vendor_order");
 
 
 Route::post("/update_general_predict", "ActionController@update_general_predict")->name("update_general_predict");
@@ -46,7 +48,7 @@ Route::get("/crawlYahooData", "StockController@crawlYahoo");
 Route::get("/stock-data/{date}/{code}", function ($date, $code){
     $stocks = DB::table("stock_prices")
         ->addSelect(DB::raw("tlong as date"))
-        ->addSelect(DB::raw("ROUND((best_ask_price + best_bid_price)/2, 2) as value"))
+        ->addSelect(DB::raw("best_bid_price as value"))
         ->addSelect("open")
         ->addSelect("low")
         ->addSelect("high")
@@ -105,7 +107,8 @@ Route::get("/test-proxy", function (){
 
 Route::get("/redis-test", function (){
 
-    var_dump(\Illuminate\Support\Facades\Queue::size("low"));
+    echo "Low: " .Queue::size("low")."<br>";
+    echo "High: " .Queue::size("high")."<br>";
 
     /*$r = Redis::keys("Stock*");
 

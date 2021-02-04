@@ -46,6 +46,7 @@ class PlaceOrder implements ShouldQueue
 
         $this->qty = 1;
         $this->code = $this->stockPrice["code"];
+        $this->tlong = $this->stockPrice['tlong'];
 
         $this->price = $price;
 

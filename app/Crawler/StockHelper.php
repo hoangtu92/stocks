@@ -537,12 +537,12 @@ class StockHelper
      */
     public static function getGeneralStart($filter_date)
     {
-        $general_start = (float)Redis::get("General:open_today");
+        $general_start = (float)Redis::get("General:open_today#{$filter_date}");
         if (!$general_start) {
             $stock = GeneralStock::where("date", $filter_date)->first();
             if ($stock) {
                 $general_start = $stock->general_start;
-                Redis::set("General:open_today", $general_start);
+                Redis::set("General:open_today#{$filter_date}", $general_start);
             }
 
         }
@@ -555,35 +555,17 @@ class StockHelper
      */
     public static function getYesterdayFinal($filter_date)
     {
-        $y = (float)Redis::get("General:yesterday_final");
+        $y = (float)Redis::get("General:yesterday_final#{$filter_date}");
         if (!$y) {
             $stock = GeneralStock::where("date", self::previousDay($filter_date))->first();
             if ($stock) {
                 $y = $stock->today_final;
-                Redis::set("General:yesterday_final", $y);
+                Redis::set("General:yesterday_final#{$filter_date}", $y);
             }
 
         }
 
         return $y;
-    }
-
-    public static function getStockTrend(StockPrice $stockPrice, $minute = 5)
-    {
-
-        $trend = Redis::get("Stock:trend#{$stockPrice->code}*{$stockPrice->time->format("YmdHi")}");
-
-        if (!$trend) {
-            $milliseconds = $minute * 60 * 1000;
-            $query = DB::select("SELECT IF(s1.best_ask_price > (SELECT best_ask_price from stock_prices s2 WHERE s1.date = s2.date AND s1.code = s2.code AND s1.tlong - s2.tlong >= {$milliseconds} ORDER BY s2.tlong DESC limit 1), 'UP', 'DOWN') as trend
-FROM `stock_prices` s1
-WHERE s1.date = '{$stockPrice->date}' AND s1.tlong <= {$stockPrice->tlong} AND code = {$stockPrice->code}
-ORDER BY `tlong` DESC LIMIT 1");
-            $trend = $query[0]->trend;
-            Redis::set("Stock:trend#{$stockPrice->code}*{$stockPrice->time->format("YmdHi")}", $trend);
-        }
-
-        return $trend;
     }
 
     public static function getGeneralTrend(StockPrice $stockPrice, $minute = 5)
@@ -679,7 +661,7 @@ ORDER BY `time` DESC LIMIT 1");
             $filter_date = date("Y-m-d");
         }
 
-        $dl1 = Redis::lrange("Stock:DL1", 0, -1);
+        $dl1 = Redis::lrange("Stock:DL1#{$filter_date}", 0, -1);
 
         if (!$dl1) {
             Log::debug("No dl1 in redis. retrieving from db");
@@ -687,7 +669,7 @@ ORDER BY `time` DESC LIMIT 1");
 
             foreach ($stocks as $stock) {
                 $dl1[] = $stock->code;
-                Redis::rpush("Stock:DL1", $stock->code);
+                Redis::rpush("Stock:DL1#{$filter_date}", $stock->code);
             }
         }
 

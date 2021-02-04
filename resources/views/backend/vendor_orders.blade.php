@@ -29,11 +29,11 @@
         <tr style="background-color: rgba(121,252,0,0.05)">
 
             <td>{{$tr->date}}</td>
-            <td>{{$tr->open_time}}</td>
+            <td>{{$tr->time}}</td>
             <td><a style="color: deepskyblue" title="View stock chart" href="{{ route("stock_chart", ["date" => $tr->date, "code" => $tr->stock->code]) }}" target="_blank">{{$tr->stock->code}}- {{$tr->stock->name}}</a></td>
             <td>{{$tr->qty}}</td>
             <td>{{$tr->price}}</td>
-            <td>{{$tr->current_price}}</td>
+            <td>{{$tr->price}}</td>
             {{--<td @if($tr->current_profit <= 0) style="color: green" @else style="color: red" @endif>{{$tr->profit}}</td>
             <td @if($tr->current_profit_percent <= 0) style="color: green" @else style="color: red" @endif>{{$tr->current_profit_percent}}%</td>--}}
             <td>{{$tr->type}}</td>

@@ -12,7 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Redis;
- 
+
 class TickShortSell1 implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
@@ -238,14 +238,14 @@ class TickShortSell1 implements ShouldQueue
                             $unclosed_order->save();
                             echo "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   GAI   PROFIT: {$unclosed_order->profit_percent}\n";
 
-                            $remain_unclosed_order = StockOrder::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->where("closed", false)->first();
+                            /*$remain_unclosed_order = StockOrder::where("code", $this->stockPrice->code)->where("date", $this->stockPrice->date)->where("closed", false)->first();
                             if($remain_unclosed_order){
                                 $remain_unclosed_order->buy = $this->stockPrice->best_ask_price;
                                 $remain_unclosed_order->closed = true;
                                 $remain_unclosed_order->tlong2 = $this->stockPrice->tlong;
                                 $remain_unclosed_order->save();
                                 echo "{$remain_unclosed_order->code}   {$this->stockPrice->current_time}: [{$remain_unclosed_order->id}]   GAI   PROFIT: {$remain_unclosed_order->profit_percent}\n";
-                            }
+                            }*/
                             return;
 
                         } else {
@@ -261,20 +261,15 @@ class TickShortSell1 implements ShouldQueue
 
                                 $time_since_order_confirmed = ($this->stockPrice->tlong - $unclosed_order->tlong) / 1000 / 60;
 
-
-
-                                if($this->stockPrice->stock_time['hours'] < 10){
-
-                                    if($profit <= -1800 && $general_highest_updated){
-                                        $reason[] = "PROFIT < -1800 When General High Updated | {$previous_profit}/{$profit}";
-                                    }
+                                if ($this->highest_updated) {
+                                    $reason[] = "PRICE IS RISING";
                                 }
 
-                                if(($price_above_yesterday_final && $this->time_since_begin < 30)){
-                                    $reason[] = "PRICE > Y: {$this->stockPrice->best_ask_price}/{$this->stockPrice->yesterday_final}";
+                                if ($this->stockPrice->current_price_range >= 7.5) {
+                                    $reason[] = "PRICE RANGE ABOVE 6%";
                                 }
 
-                                if($end_of_day){
+                                if ($end_of_day) {
                                     $reason[] = "EOD";
                                 }
 

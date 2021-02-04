@@ -75,8 +75,12 @@ class CrawlYahooStock extends Command
                 ->get();
 
             foreach ($stocks as $stock){
-                CrawlYahooPrice::dispatch($stock->code)->onQueue("high");
-                echo "Crawling job for {$stock->code} queued\n";
+                $priceCount = StockPrice::where("code", $stock->code)->where("date", $filter_date)->count();
+                if($priceCount <= 200){
+                    CrawlYahooPrice::dispatch($stock->code)->onQueue("high");
+                    echo "Crawling job for {$stock->code} queued\n";
+                }
+
             }
         }
 

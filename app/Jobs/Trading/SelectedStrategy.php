@@ -94,6 +94,8 @@ class SelectedStrategy implements ShouldQueue
                     DB::table("dl")->where("date", "=", $stock['date'])
                         ->where("code", "=", $stock['code'])->update($data);
 
+                    TickShortSell1::dispatchNow($this->stockPrice);
+
                     Redis::hmset("stock:dl#{$this->stockPrice->code}", $stock);
                 }
             }

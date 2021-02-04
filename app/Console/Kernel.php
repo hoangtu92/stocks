@@ -42,8 +42,12 @@ class Kernel extends ConsoleKernel
         // $schedule->command('inspire')->hourly();
 
         #Log::info("every mins");
+        $schedule->call(function (){
+            Redis::flushall();
+        })->dailyAt("08:00");
 
         $schedule->call(function () {
+
             $r = SelectedVendor::login();
             Log::debug("Vendor Login" .json_encode($r));
         })->dailyAt("09:00");
@@ -57,7 +61,7 @@ class Kernel extends ConsoleKernel
 
 
         $schedule->call(function () {
-            Redis::flushall();
+
             Redis::set("is_holiday", StockHelper::isHoliday());
             if(StockHelper::isHoliday()){
                 Log::info("Holiday");
@@ -219,10 +223,16 @@ class Kernel extends ConsoleKernel
             file_get_contents(route("re_crawl_agency"));
         })
             ->weekdays()
-            ->between("18:10", "21:30")
+            ->at("18:20")
             ->when(function () {
                 return !(bool)Redis::get("is_holiday");
             });
+
+        $schedule->call(function (){
+            file_get_contents(route("re_crawl_agency"));
+        })
+            ->weekdays()
+            ->at("12:10");
 
         /**
          * Crawl holiday
