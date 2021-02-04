@@ -234,6 +234,13 @@ class Kernel extends ConsoleKernel
             ->weekdays()
             ->at("12:10");
 
+
+        $schedule->call(function (){
+            file_get_contents(route("re_crawl_agency"));
+        })
+            ->weekdays()
+            ->at("01:22");
+
         /**
          * Crawl holiday
          */
