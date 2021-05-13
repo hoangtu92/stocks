@@ -51,7 +51,7 @@ class RerunDl0 extends Command
      */
     public function handle()
     {
-        Redis::flushall();
+        #Redis::flushall();
         $start = $this->argument("start");
         $end = $this->argument("end");
         $code = $this->argument("code");
@@ -116,23 +116,23 @@ class RerunDl0 extends Command
 
                 //Get DL0 stocks
 
-                $stocks = $stocks = DB::table("dl")
+                $stocks = DB::table("dl")
                     ->select("code")
+                    ->addSelect("dl_date as date")
                     ->whereRaw("dl.agency IS NOT NULL")
                     ->where("dl.final", "<", 200)
                     ->where("dl.final", ">", 10)
-                    ->whereIn("date", [
+                    ->whereIn("dl_date", [
                             StockHelper::previousDay($filter_date),
                             StockHelper::previousDay(StockHelper::previousDay($filter_date)),
                         ]
                     )
-                    ->orderByDesc("dl.date")
-                    ->groupBy("code")
+                    ->distinct()
                     ->get();
 
 
                 foreach ($stocks as $stock){
-                    $log = "Rerunning Stocks: {$stock->code} on {$filter_date}";
+                    $log = "Rerunning Stocks: {$stock->code} on {$filter_date} | {$stock->date}";
                     Log::info($log);
 
                     Dl0::dispatch($stock->code, $filter_date, $type)->onQueue("high");
@@ -140,6 +140,7 @@ class RerunDl0 extends Command
 
                 }
 
+                //echo exec("tail -f storage/logs/laravel.log");
                 //$stockOrders = StockOrder::where("date", $filter_date)->get();
                 //$this->summary($stockOrders);
 

@@ -115,7 +115,9 @@ class CrawlRealtimeStock implements ShouldQueue
                     'yesterday_final' => $yesterday_final,
                 ];
 
-                Redis::hmset("Stock:currentPrice#{$stockPrice['code']}", $stockPrice);
+
+                Redis::hmset("Stock:currentPrice#{$stockPrice['code']}#{$stockPrice['date']}", $stockPrice);
+                Redis::hmset("Stock:prices#{$stockPrice['code']}#{$stockPrice['tlong']}", $stockPrice);
 
                 SelectedStrategy::dispatchNow($stockPrice);
 

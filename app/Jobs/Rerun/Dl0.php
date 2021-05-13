@@ -22,7 +22,7 @@ class Dl0 implements ShouldQueue
     protected string $type;
     protected string $filter_date;
     public int $timeout = 0;
-    public int $tries = 2;
+    public int $tries = 0;
 
     /**
      * Create a new job instance.
@@ -54,6 +54,7 @@ class Dl0 implements ShouldQueue
         foreach($stockPrices as $stockPrice){
 
             Redis::hmset("Stock:currentPrice#{$stockPrice->code}#{$stockPrice->date}", $stockPrice->toArray());
+            Redis::hmset("Stock:prices#{$stockPrice['code']}#{$stockPrice->tlong}", $stockPrice->toArray());
 
             $lowest = (float) Redis::get("Stock:lowest#{$stockPrice->code}#{$stockPrice->date}");
             $highest =  (float) Redis::get("Stock:highest#{$stockPrice->code}#{$stockPrice->date}");

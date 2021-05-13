@@ -41,6 +41,8 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
 
+        if(env("CRAWLING") == 0) return;
+
         #Log::info("every mins");
         $schedule->call(function (){
             Redis::flushall();

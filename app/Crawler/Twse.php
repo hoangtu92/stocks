@@ -22,7 +22,7 @@ class Twse extends Crawler
                 "response" => "json",
                 "date" => $filter_date]);
 
-        $response = StockHelper::get_content($url);
+        $response = StockHelper::get_content($url, false);
 
         $json = json_decode($response);
 

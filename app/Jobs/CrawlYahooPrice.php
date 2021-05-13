@@ -102,6 +102,9 @@ class CrawlYahooPrice implements ShouldQueue
 
                 }
 
+                Redis::hmset("Stock:currentPrice#{$stockPrice['code']}#{$stockPrice['date']}", $stockPrice);
+                Redis::hmset("Stock:prices#{$stockPrice['code']}#{$stockPrice['tlong']}", $stockPrice);
+
                 SelectedStrategy::dispatchNow($stockPrice);
 
             }

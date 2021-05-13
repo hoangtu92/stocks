@@ -107,11 +107,32 @@ Route::get("/test-proxy", function (){
 
 Route::get("/redis-test", function (){
 
-    phpinfo();
-    //echo "Low: " .Queue::size("low")."<br>";
-    //echo "High: " .Queue::size("high")."<br>";
+    //phpinfo();
+    echo "Default: " .Queue::size("default")."<br>";
+    echo "Low: " .Queue::size("low")."<br>";
+    echo "Medium: " .Queue::size("medium")."<br>";
+    echo "High: " .Queue::size("high")."<br>";
 
-    /*$r = Redis::keys("Stock*");
+
+    echo StockHelper::previousDay("2021-05-03")."<br>";
+    echo StockHelper::previousDay(StockHelper::previousDay("2021-05-03"));
+
+    $stocks = DB::table("dl")
+        ->select("code")
+        ->addSelect("date")
+        ->whereRaw("dl.agency IS NOT NULL")
+        ->where("dl.final", "<", 200)
+        ->where("dl.final", ">", 10)
+        ->whereIn("dl_date", [
+                StockHelper::previousDay("2021-05-03"),
+                StockHelper::previousDay(StockHelper::previousDay("2021-05-03")),
+            ]
+        )
+        ->distinct()->toSql();
+
+    echo $stocks;
+
+    /*$r = Redis::keys("Stock:prices*");
 
     $a = [];
 

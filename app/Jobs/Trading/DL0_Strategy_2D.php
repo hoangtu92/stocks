@@ -3,12 +3,8 @@
 namespace App\Jobs\Trading;
 
 use App\Crawler\StockHelper;
-use App\Jobs\Analyze\MonitorOrders;
-use App\Jobs\Order\PlaceOrder;
 use App\StockOrder;
 use App\StockPrice;
-use App\StockVendors\SelectedVendor;
-use Backpack\Settings\app\Models\Setting;
 use DateTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -46,6 +42,7 @@ class DL0_Strategy_2D implements ShouldQueue
     protected $should_sell_another = false;
     protected $should_buy = false;
     protected $time_since_begin;
+    protected array $prices = [];
 
     /**
      * Create a new job instance.
@@ -58,13 +55,13 @@ class DL0_Strategy_2D implements ShouldQueue
 
 
         //
+        $belowYForOneMinute = false;
         $this->stockPrice = $stockPrice;
         $this->current_general = StockHelper::getCurrentGeneralPrice($this->stockPrice->tlong);
         if($this->current_general){
             $this->previous_general =StockHelper::getPreviousGeneralPrice($this->current_general['tlong']);
         }
 
-        $this->general_trend = StockHelper::getGeneralTrend($this->stockPrice, 5);
         $this->unclosed_orders = StockOrder::where("code", $this->stockPrice->code)
             ->where("closed", "=", false)
             ->where("order_type", "=", StockOrder::DL0)
@@ -80,6 +77,25 @@ class DL0_Strategy_2D implements ShouldQueue
             ->where("date", $this->stockPrice->date)
             ->orderByDesc("tlong2")
             ->first();
+
+        $range = range($this->stockPrice->tlong - 600, $this->stockPrice->tlong);
+
+        if($this->stockPrice->best_bid_price <= $this->stockPrice->yesterday_final)
+            $belowYForOneMinute = true;
+
+        foreach ($range as $tmp){
+            $price = Redis::hgetall("Stock:prices#{$this->stockPrice->code}#{$tmp}");
+
+            if($price){
+
+                if($price['best_bid_price'] > $price['yesterday_final']){
+                    $belowYForOneMinute = false;
+                }
+
+            }
+        }
+
+
 
         $this->lowest_updated = Redis::get("Stock:lowest_updated#{$this->stockPrice->code}#{$this->stockPrice->date}") == 1;
         $this->highest_updated = Redis::get("Stock:highest_updated#{$this->stockPrice->code}#{$this->stockPrice->date}") == 1;
@@ -116,9 +132,9 @@ class DL0_Strategy_2D implements ShouldQueue
             && ($this->stockPrice->stock_time['hours'] < 13 || ($this->stockPrice->stock_time['hours'] == 13 && $this->stockPrice->stock_time['minutes'] < 10))
             && $this->lowest_updated
             //&& $this->stockPrice->open > $this->stockPrice->yesterday_final
-            && count($this->unclosed_orders) < 2
-            && $this->stockPrice->best_bid_price <= $this->stockPrice->yesterday_final
-            && $this->time_since_begin > 1
+            /*&& count($this->unclosed_orders) < 2
+            && $belowYForOneMinute
+            && $this->time_since_begin > 1*/
             && !$this->previous_order
             #&& ($time_since_previous_order == 0 || $time_since_previous_order > 5 )
         ){
@@ -141,19 +157,12 @@ class DL0_Strategy_2D implements ShouldQueue
         //best_bid_price = use when selling | The bid price refers to the highest price a buyer will pay
         //best_ask_price = use when buy back | The ask price refers to the lowest price a seller will accept
 
-        #$general_is_raising = $this->general_trend == "UP";
-        #$stock_is_raising = $this->highest_updated;
-        #$general_start_high_then_drop_below_y = $this->general_start > $this->yesterday_final && $this->current_general['low'] < $this->yesterday_final;
-        #$general_is_dropping = $this->current_general && $this->current_general['value'] < $this->current_general['high'];
-
         $general_highest_updated = $this->previous_general && $this->previous_general['high'] < $this->current_general['high'];
         $general_lowest_updated = $this->previous_general && $this->previous_general['low'] > $this->current_general['low'];
 
 
         //Buy back condition
         $end_of_day = $this->stockPrice->stock_time["hours"] >= 13 && $this->stockPrice->stock_time["minutes"] > 10;
-        $price_above_yesterday_final = $this->stockPrice->best_ask_price > $this->stockPrice->yesterday_final;
-        $current_price_greater_than_previous_sold = $this->previous_order && $this->stockPrice->best_ask_price >= $this->previous_order->sell;
 
 
         //Check if there is un close order?
@@ -178,7 +187,7 @@ class DL0_Strategy_2D implements ShouldQueue
                             if($this->stockPrice->best_bid_price > 0){
                                 //Confirm previous order sold!! Request to close it
                                 $unclosed_order->tlong = $this->stockPrice->tlong;
-                                $log = "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   SEL   AT  {$unclosed_order->sell}\n";
+                                $log = "{$unclosed_order->code} {$this->stockPrice->date}  {$this->stockPrice->current_time}: [{$unclosed_order->id}]   SEL   AT  {$unclosed_order->sell}\n";
                                 Log::info($log);
 
                                 $unclosed_order->buy = $unclosed_order->sell > 100 ? $unclosed_order->sell - 1 : $unclosed_order->sell - 0.4;
@@ -194,7 +203,7 @@ class DL0_Strategy_2D implements ShouldQueue
                             $time_since_order_requested = ($this->stockPrice->tlong - $created_at->getTimestamp()*1000) / 1000 / 60;
                             if ($time_since_order_requested > 5 || $this->stockPrice->stock_time['hours'] == 13 && $this->stockPrice->stock_time['minutes'] >= 20) {
                                 $unclosed_order->delete();
-                                $log = "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   CAN   DURATION: {$time_since_order_requested} \n";
+                                $log = "{$unclosed_order->code}  {$this->stockPrice->date} {$this->stockPrice->current_time}: [{$unclosed_order->id}]   CAN   DURATION: {$time_since_order_requested} \n";
                                 Log::info($log);
                             }
                         }
@@ -208,7 +217,7 @@ class DL0_Strategy_2D implements ShouldQueue
                             $unclosed_order->tlong2 = $this->stockPrice->tlong;
                             $unclosed_order->save();
 
-                            $log =  "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   GAI   PROFIT: {$unclosed_order->profit_percent}";
+                            $log =  "{$unclosed_order->code} {$this->stockPrice->date}  {$this->stockPrice->current_time}: [{$unclosed_order->id}]   GAI   PROFIT: {$unclosed_order->profit_percent}";
                             Log::info($log);
                             return;
 
@@ -221,10 +230,10 @@ class DL0_Strategy_2D implements ShouldQueue
                                 $time_since_order_confirmed = ($this->stockPrice->tlong - $unclosed_order->tlong) / 1000 / 60;
 
 
-
                                 if($this->stockPrice->best_ask_price  > $this->stockPrice->yesterday_final + $this->stockPrice->yesterday_final*0.04){
                                     $reason[] = "PRICE ABOVE Y 4%";
                                 }
+
 
                                 if ($this->stockPrice->current_price_range >= 7.5) {
                                     $reason[] = "PRICE RANGE ABOVE 7.5%";
@@ -249,7 +258,7 @@ class DL0_Strategy_2D implements ShouldQueue
 
                                         $reason = implode(", ", $reason);
 
-                                        $log =  "{$unclosed_order->code}   {$this->stockPrice->current_time}: [{$unclosed_order->id}]   LOS   PROFIT: {$unclosed_order->profit_percent} | REASON: {$reason}";
+                                        $log =  "{$unclosed_order->code} {$this->stockPrice->date}  {$this->stockPrice->current_time}: [{$unclosed_order->id}]   LOS   PROFIT: {$unclosed_order->profit_percent} | REASON: {$reason}";
                                         Log::info($log);
 
 
@@ -291,7 +300,7 @@ class DL0_Strategy_2D implements ShouldQueue
             "deal_type" => StockOrder::SHORT_SELL,
             "date" => $this->stockPrice->date,
             "code" => $this->stockPrice->code,
-            "qty" => $this->general_start <= 14233 ? 1 : round(150/$f_price),
+            "qty" => $this->general_start <= 14233 ? 1 : round(60/$f_price),
             "sell" => $f_price,
             "tlong" =>  !$price ? $this->stockPrice->tlong : NULL,
             "closed" => false,
@@ -306,7 +315,7 @@ class DL0_Strategy_2D implements ShouldQueue
             $stockOrder->buy = $buy_price;
             $stockOrder->save();
 
-            $log = "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   SEL   AT {$f_price} | TRY TO BUY AT {$buy_price}";
+            $log = "{$stockOrder->code} {$this->stockPrice->date}  {$this->stockPrice->current_time}: [{$stockOrder->id}]   SEL   AT {$f_price} | TRY TO BUY AT {$buy_price}";
             Log::info($log);
 
             if($this->should_sell_another){
@@ -315,7 +324,7 @@ class DL0_Strategy_2D implements ShouldQueue
 
         }
         else{
-            $log = "{$stockOrder->code}   {$this->stockPrice->current_time}: [{$stockOrder->id}]   TRY   AT {$f_price} \n";
+            $log = "{$stockOrder->code} {$this->stockPrice->date}  {$this->stockPrice->current_time}: [{$stockOrder->id}]   TRY   AT {$f_price} \n";
             Log::info($log);
         }
 

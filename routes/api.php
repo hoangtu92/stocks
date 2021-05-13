@@ -29,7 +29,7 @@ Route::post("/import_cmoney/{code}", function ($code, Request $request){
 
     //var_dump($data);
     ImportCMoney::dispatch($code, $data)->onQueue("high");
-    return $data->DataPrice;
+    return json_encode($data);
 })->middleware(['cors']);
 
 

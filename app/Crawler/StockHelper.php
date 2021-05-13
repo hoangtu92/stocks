@@ -21,23 +21,46 @@ use SimpleXMLElement;
 class StockHelper
 {
 
-    public static function get_content($url){
-        #$proxy = "http://proxy.apify.com:8000";
-        $proxies = [
-            "50.117.101.159:1212",
-            "23.27.229.214:1212",
-            "209.73.154.216:1212",
-            "50.117.101.224:1212",
-            "205.164.20.110:1212",
-            "205.164.23.171:1212",
-            "23.27.247.73:1212"
-        ];
-        $idx = random_int(0, 6);
+    public static function get_content($url, $proxy = true){
+
         $ch = curl_init();
+
+        if($proxy){
+            $proxies = [
+                "50.117.102.241:1212",
+                "50.117.102.182:1212",
+                "104.253.197.16:1212",
+                "205.164.20.217:1212",
+                "50.117.102.147:1212",
+                "23.27.255.158:1212",
+                "50.117.102.3:1212",
+                "209.73.154.249:1212",
+                "216.172.129.198:1212",
+                "205.164.39.50:1212",
+                "69.46.87.246:1212",
+                "50.117.102.253:1212",
+                "216.172.129.100:1212",
+                "50.117.102.107:1212",
+                "69.46.88.182:1212",
+                "50.117.102.29:1212",
+                "50.117.102.170:1212",
+                "50.117.102.108:1212",
+                "50.117.102.198:1212",
+                "50.117.102.84:1212",
+                "216.172.129.102:1212",
+                "50.117.102.98:1212",
+                "50.117.102.114:1212",
+                "205.164.23.13:1212",
+                "104.253.197.143:1212"
+            ];
+            $idx = random_int(0, 24);
+            curl_setopt($ch, CURLOPT_PROXY, $proxies[$idx]);
+        }
+
+
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_PROXY, $proxies[$idx]);
-        #curl_setopt($ch, CURLOPT_PROXYUSERPWD, "auto:esPTp4hALfCTGaLZKAaZ8i2rr");
+
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
         #curl_setopt($ch, CURLOPT_HEADER, FALSE);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
@@ -47,10 +70,12 @@ class StockHelper
 
         if(curl_error($ch)){
             Log::error(curl_error($ch));
+            curl_close($ch);
+            if($proxy)
+                return self::get_content($url, false);
         }
 
         curl_close($ch);
-
         return $data;
     }
 
@@ -190,8 +215,13 @@ class StockHelper
                     'tlong' => $info->tlong
                 ];
 
+                $time = new DateTime();
+                $time->setTimestamp($info->tlong/1000);
+
+                Redis::hmset("General:realtime#{$time->format("YmdHi")}", $generalPrice);
+
                 SaveGeneralPrice::dispatch($generalPrice)->onQueue("low");
-                Redis::hmset("General:realtime#{$generalPrice['date']}", $generalPrice);
+
 
             }
 

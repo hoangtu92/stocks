@@ -22,7 +22,7 @@ class CrawlDL implements ShouldQueue, ShouldBeUnique
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $timeout = 0;
-    public $tries = 1;
+    public $tries = -1;
     protected $filter_date;
 
     /**
